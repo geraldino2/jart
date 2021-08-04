@@ -3,7 +3,7 @@
 import subprocess,os
 
 domain = "uber.com"
-resolvers = "/home/apolo2/.config/resolvers.txt"
+resolvers = "/home/apolo2/.config/ipv4-resolvers.txt"
 brute_wordlist = "/home/apolo2/SecLists/Discovery/DNS/dns-The-Biggest.txt"
 alt_wordlist = "/home/apolo2/SecLists/Discovery/DNS/small-alt.txt"
 amass_config = "/home/apolo2/Desktop/config.ini"
@@ -36,23 +36,34 @@ with open('subfinder-output','r') as subfinder_output, \
         subfinder_output.close()
         amass_output.close()
 
-print('#shuffledns - resolve')
-print(run_command(f"shuffledns -d {domain} -list join-1 -r {resolvers} \
-            -o subdomains"))
+print('#massdns - resolve')
+print(run_command(f"massdns -r {resolvers} -w massdns-resolve-output -o \
+    Srmldni join-1"))
 
-print('#shuffledns - brute')
-print(run_command(f"shuffledns -d {domain} -w {brute_wordlist} -r {resolvers} \
-            -o shuffledns-output"))
+print('#create brute_wordlist')
+with open("tobrute","w") as saida:
+    for parametro in open(brute_wordlist,"r"):
+        _ = saida.write("{}.{}\n".format(parametro.replace("\n",""),domain))
+
+print('#massdns - brute')
+print(run_command(f"massdns -r {resolvers} -w massdns-brute-output -o Srmldni\
+    tobrute"))
+'''
+
+# parse massdns output
+#    filter valid domains
+#    filter cnames
+#    filter codes to check takeovers
 
 print('#join | sort | uniq')
-with open('subdomains','r') as subdomains, \
-    open('shuffledns-output','r') as shuffledns_output, \
+with open('massdns-resolve-output','r') as resolve_output, \
+    open('massdns-brute-output','r') as brute_output, \
     open('subdomains','w') as join:
-        comb = list(set(list(subdomains) + list(shuffledns_output)))
+        comb = list(set(list(resolve_output) + list(brute_output)))
         open('subdomains','w').close()
         join.write(''.join(comb))
-        subdomains.close()
-        shuffledns_output.close()
+        resolve_output.close()
+        brute_output.close()
 
 print('#altdns')
 print(run_command(f"altdns -i {subdomains} -o altdns-output -w {alt_wordlist}"))
@@ -70,3 +81,4 @@ with open('subdomains','r') as subdomains, \
         join.write(''.join(comb))
         subdomains.close()
         altdns_output_valid.close()
+'''
