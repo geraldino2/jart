@@ -1,14 +1,15 @@
 #!/usr/bin/python
 
-import os
 import main
+import yaml
 
-os.system("cls||clear")
+with open("config.yaml","r") as config_file:
+	config = yaml.load(config_file.read(), Loader=yaml.CLoader)
 
-domain = "uber.com"
-resolvers = "/home/apolo2/.config/resolvers.txt"
-brute_wordlist = "/home/apolo2/SecLists/Discovery/DNS/dns-The-Biggest.txt"
-alt_wordlist = "/home/apolo2/SecLists/Discovery/DNS/small-alt.txt"
-amass_config = "/home/apolo2/Desktop/config.ini"
+domain = config["domain"]
+resolvers = config["resolvers"]
+brute_wordlist = config["brute_wordlist"]
+alt_wordlist = config["alt_wordlist"]
+amass_config = config["amass_config"]
 
 main.run(domain,resolvers,brute_wordlist,alt_wordlist,amass_config)

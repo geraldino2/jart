@@ -1,4 +1,5 @@
 import subprocess
+import os
 from parse import massdns
 
 
@@ -10,6 +11,7 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         amass_config:str):
+    os.system("cls||clear")
     print("#subfinder")
     print(run_command(f"subfinder -d {domain} -all -o subfinder-out\
                 -rL {resolvers} -timeout 90"))

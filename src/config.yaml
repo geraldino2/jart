@@ -1,0 +1,6 @@
+--- 
+alt_wordlist: /home/apolo2/SecLists/Discovery/DNS/small-alt.txt
+amass_config: /home/apolo2/Desktop/config.ini
+brute_wordlist: /home/apolo2/SecLists/Discovery/DNS/dns-The-Biggest.txt
+domain: uber.com
+resolvers: /home/apolo2/.config/resolvers.txt
