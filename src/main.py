@@ -1,6 +1,8 @@
 import subprocess
 import os
-from parse import massdns
+from dns import rcode
+from modules.parse import massdns
+from modules import dns_query
 
 
 def run_command(cmd:str) -> (bytes,bytes,bytes):
@@ -12,7 +14,7 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         amass_config:str):
     os.system("cls||clear")
-
+    '''
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
                 -rL {resolvers} -timeout 90")
@@ -93,7 +95,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     print("#massdns - ns")
     _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt -w massdns-ns-out -t NS -o \
         Srmldni errors -s 20000")
-    
+    '''
     print("parsing")
     with open("subdomains","a+") as subdomains_file, \
         open("massdns-alt-out","r") as alt_out, \
@@ -102,17 +104,22 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         open("massdns-resolve-out","r") as resolve_out:
         lines = subdomains_file.read().split("\n")
         ns_lines = ns_out.read().split("\n")
-        valid = massdns.load \
-                (alt_out.read().split("\n") + \
-                brute_out.read().split("\n") + \
-                resolve_out.read().split("\n") + \
-                ns_lines)[0]
+        valid,nx,errors = massdns.load \
+                            (alt_out.read().split("\n") + \
+                            brute_out.read().split("\n") + \
+                            resolve_out.read().split("\n") + \
+                            ns_lines)
+        errors = set()
         ns_records = massdns.load(ns_lines)
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in lines):
-                #subdomains_file.write(subdomain+"\n")
-                valid[subdomain] = ("NOERROR",ns_records[0][subdomain][1])
-    
+                query_result = dns_query.process_query("1.1.1.1",subdomain,1)
+                if(query_result[1]!="" or query_result[0] == 0):
+                    valid[subdomain] = (rcode.to_text(query_result[0]),\
+                                        query_result[1])
+                else:
+                    errors.add(subdomain)
+    '''
     print("delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
                 "alt-subdomains","tobrute","t-errors","t-nxdomains", \
@@ -123,3 +130,4 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             os.remove(file)
         except FileNotFoundError:
             pass
+    '''
