@@ -1,9 +1,10 @@
 import subprocess
 import os
+import mysql
 from dns import rcode
 from modules.parse import massdns
 from modules import dns_query
-
+from modules import database
 
 def run_command(cmd:str) -> (bytes,bytes,bytes):
     cmd = [arg for arg in cmd.split(" ") if arg != ""]
@@ -12,9 +13,9 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
     return(process.communicate()[0],process.communicate()[1])
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
-        amass_config:str):
+        amass_config:str,db_credentials:tuple):
     os.system("cls||clear")
-    '''
+
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
                 -rL {resolvers} -timeout 90")
@@ -95,8 +96,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     print("#massdns - ns")
     _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt -w massdns-ns-out -t NS -o \
         Srmldni errors -s 20000")
-    '''
-    print("parsing")
+
+    print("#parsing")
     with open("subdomains","a+") as subdomains_file, \
         open("massdns-alt-out","r") as alt_out, \
         open("massdns-brute-out","r") as brute_out, \
@@ -114,13 +115,34 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in lines):
                 query_result = dns_query.process_query("1.1.1.1",subdomain,1)
-                if(query_result[1]!="" or query_result[0] == 0):
+                if(query_result[1]!="" and query_result[0] == 0):
+                    answers = set()
+                    for answer in query_result[1].split("\n"):
+                        answers.add(answer)
                     valid[subdomain] = (rcode.to_text(query_result[0]),\
-                                        query_result[1])
+                                        answers)
                 else:
                     errors.add(subdomain)
-    '''
-    print("delete")
+    ip_cnames = set()
+    for pair in ([ip_cname[1] for ip_cname in list(valid.values())]):
+        for value in pair:
+            ip_cnames.add(value)
+
+    print("#database add")
+    db = database.DB_Connection( \
+        db_credentials[0],db_credentials[1],db_credentials[2]).connect()
+    db_cursor = db.cursor()
+    try:
+        db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
+    except mysql.connector.errors.DatabaseError:
+        print("database already exists - further, jart will detect existing \
+            databases and only perform additional scans from it")
+    db_cursor.execute("SHOW DATABASES")
+    for item in db_cursor:
+        print(item)
+
+
+    print("#delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
                 "alt-subdomains","tobrute","t-errors","t-nxdomains", \
                 "t-subdomains","amass-out","subfinder-out","subdomains", \
@@ -130,4 +152,3 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             os.remove(file)
         except FileNotFoundError:
             pass
-    '''

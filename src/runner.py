@@ -4,7 +4,8 @@ import main
 import yaml
 
 def load_config():
-	global domain,resolvers,brute_wordlist,alt_wordlist,amass_config
+	global domain,resolvers,brute_wordlist,alt_wordlist,amass_config,\
+	db_host,db_user,db_pass
 	with open("config.yaml","r") as config_file:
 		config = yaml.load(config_file.read(), Loader=yaml.CLoader)
 
@@ -13,6 +14,10 @@ def load_config():
 	brute_wordlist = config["brute_wordlist"]
 	alt_wordlist = config["alt_wordlist"]
 	amass_config = config["amass_config"]
+	db_host = config["db_host"]
+	db_user = config["db_user"]
+	db_pass = config["db_pass"]
 
 load_config()
-main.run(domain,resolvers,brute_wordlist,alt_wordlist,amass_config)
+main.run(domain,resolvers,brute_wordlist,alt_wordlist,amass_config,
+		(db_host,db_user,db_pass))
