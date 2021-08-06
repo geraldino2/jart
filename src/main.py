@@ -12,7 +12,7 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         amass_config:str):
     os.system("cls||clear")
-    '''
+
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
                 -rL {resolvers} -timeout 90")
@@ -55,7 +55,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     print("#massdns - brute alt")
     _ = run_command(f"massdns -r {resolvers} -w massdns-alt-out -o \
         Srmldni altdns-out -s 200000")
-    '''
+
     print("#join | sort | uniq")
     with open("massdns-alt-out","r") as alt_out, \
         open("subdomains","w") as valid_join, \
@@ -86,12 +86,38 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             for domain in nxdomain:
                 nxdomain_join.write(domain+"\n")
             for domain in error:
-                errors_join.write(domain+"\n")
+                if(domain not in valid):
+                    errors_join.write(domain+"\n")
+            print(len(valid))
 
+    print("#massdns - ns")
+    _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt -w massdns-ns-out -t NS -o \
+        Srmldni errors -s 20000")
+    
+    print("parsing")
+    with open("subdomains","a+") as subdomains_file, \
+        open("massdns-alt-out","r") as alt_out, \
+        open("massdns-brute-out","r") as brute_out, \
+        open("massdns-ns-out","r") as ns_out, \
+        open("massdns-resolve-out","r") as resolve_out:
+        lines = subdomains_file.read().split("\n")
+        ns_lines = ns_out.read().split("\n")
+        valid = massdns.load \
+                (alt_out.read().split("\n") + \
+                brute_out.read().split("\n") + \
+                resolve_out.read().split("\n") + \
+                ns_lines)[0]
+        ns_records = massdns.load(ns_lines)
+        for subdomain in list(ns_records[0].keys()):
+            if(subdomain not in lines):
+                #subdomains_file.write(subdomain+"\n")
+                valid[subdomain] = ("NOERROR",ns_records[0][subdomain][1])
+    
     print("delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
                 "alt-subdomains","tobrute","t-errors","t-nxdomains", \
-                "t-subdomains","amass-out","subfinder-out"]
+                "t-subdomains","amass-out","subfinder-out","subdomains", \
+                "errors","nxdomains"]
     for file in to_remove:
         try:
             os.remove(file)
