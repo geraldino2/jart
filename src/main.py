@@ -13,13 +13,13 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         amass_config:str):
     os.system("cls||clear")
     print("#subfinder")
-    print(run_command(f"subfinder -d {domain} -all -o subfinder-out\
-                -rL {resolvers} -timeout 90"))
+    _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
+                -rL {resolvers} -timeout 90")
 
     print("#amass")
-    print(run_command(f"amass enum -active -config {amass_config} -rf \
+    _ = run_command(f"amass enum -active -config {amass_config} -rf \
                     {resolvers} -d {domain} -o amass-out\
-                    -passive -nf subfinder-out"))
+                    -passive -nf subfinder-out")
 
     print("#join | sort | uniq")
     with open("subfinder-out","r") as subfinder_out, \
@@ -29,10 +29,10 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             subfinder_out.close()
             amass_out.close()
 
-
+    
     print("#massdns - resolve")
-    print(run_command(f"massdns -r {resolvers} -w massdns-resolve-out -o \
-        Srmldni join-1"))
+    _ = run_command(f"massdns -r {resolvers} -w massdns-resolve-out -o \
+        Srmldni join-1 -s 20000")
 
     print("#create brute_wordlist")
     with open("tobrute","w") as saida:
@@ -41,8 +41,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 domain))
 
     print("#massdns - brute")
-    print(run_command(f"massdns -r {resolvers} -w massdns-brute-out -o \
-        Srmldni tobrute"))
+    _ = run_command(f"massdns -r {resolvers} -w massdns-brute-out -o \
+        Srmldni tobrute -s 20000")
 
     print("#join | sort | uniq")
     with open("massdns-resolve-out","r") as resolve_out, \
@@ -57,12 +57,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             errors_join.write("\n".join(errors))
 
     print("#altdns")
-    print(run_command(f"altdns -i subdomains -o altdns-out -w \
-                    {alt_wordlist}"))
+    _ = run_command(f"altdns -i subdomains -o altdns-out -w \
+                    {alt_wordlist}")
 
     print("#massdns - brute alt")
-    print(run_command(f"massdns -r {resolvers} -w massdns-alt-out -o \
-        Srmldni altdns-out"))
+    _ = run_command(f"massdns -r {resolvers} -w massdns-alt-out -o \
+        Srmldni altdns-out -s 200000")
 
     print("#join | sort | uniq")
     with open("massdns-alt-out","r") as alt_out, \
