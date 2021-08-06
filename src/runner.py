@@ -4,7 +4,7 @@ import main
 import yaml
 
 def load_config():
-	global domain,resolvers_list,brute_wordlist,alt_wordlist,amass_config
+	global domain,resolvers,brute_wordlist,alt_wordlist,amass_config
 	with open("config.yaml","r") as config_file:
 		config = yaml.load(config_file.read(), Loader=yaml.CLoader)
 
