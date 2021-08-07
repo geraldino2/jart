@@ -128,19 +128,43 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for value in pair:
             ip_cnames.add(value)
 
-    print("#database add")
+    print("#database")
     db = database.DB_Connection( \
         db_credentials[0],db_credentials[1],db_credentials[2]).connect()
     db_cursor = db.cursor()
-    try:
-        db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
-    except mysql.connector.errors.DatabaseError:
-        print("database already exists - further, jart will detect existing \
-            databases and only perform additional scans from it")
-    db_cursor.execute("SHOW DATABASES")
-    for item in db_cursor:
-        print(item)
-
+    db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
+    db_cursor.execute(f"USE {domain.replace('.','_')}")
+    db_cursor.execute("CREATE TABLE ip_cnames (dns_id INTEGER AUTO_INCREMENT,\
+                        record VARCHAR(255) NOT NULL, PRIMARY KEY (dns_id))")
+    db_cursor.execute("CREATE TABLE subdomains (subdomain_id INTEGER \
+                        AUTO_INCREMENT, hostname VARCHAR(255) NOT NULL, \
+                        dns_id INTEGER NOT NULL, dns_records VARCHAR(1024), \
+                        classification VARCHAR (8), datetime TIMESTAMP \
+                        DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY \
+                        (subdomain_id), FOREIGN KEY (dns_id) \
+                        REFERENCES ip_cnames(dns_id))")
+    db_cursor.execute("CREATE TABLE services (dns_id INTEGER, port INTEGER, \
+                        subdomain_id INTEGER, fingerprint VARCHAR(1024), \
+                        PRIMARY KEY (dns_id, port), FOREIGN KEY (dns_id) \
+                        REFERENCES ip_cnames(dns_id), FOREIGN KEY \
+                        (subdomain_id) REFERENCES subdomains(subdomain_id))")
+    db_cursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
+                        AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
+                        vulnerability VARCHAR(1024), PRIMARY KEY \
+                        (vulnerability_id, subdomain_id), FOREIGN KEY \
+                        (subdomain_id) REFERENCES subdomains(subdomain_id))")
+    db_cursor.execute("CREATE TABLE directories (directory_id INTEGER \
+                        AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
+                        path VARCHAR(2083) NOT NULL, status_code INTEGER, \
+                        size INTEGER, PRIMARY KEY (directory_id), \
+                        FOREIGN KEY (subdomain_id) \
+                        REFERENCES subdomains(subdomain_id))")
+    ip_cnames_str = ""
+    for value in ip_cnames:
+        ip_cnames_str += f" ('{value}'),"
+    db_cursor.execute(f"INSERT INTO ip_cnames(record) \
+                    VALUES{ip_cnames_str[:-1]}")
+    db.commit()
 
     print("#delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
