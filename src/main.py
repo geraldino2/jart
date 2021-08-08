@@ -2,6 +2,7 @@ import subprocess
 import os
 import mysql
 from dns import rcode
+from modules.parse.collections import set_to_str
 from modules.parse import massdns
 from modules import dns_query
 from modules import database
@@ -94,8 +95,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             print(len(valid))
 
     print("#massdns - ns")
-    _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt -w massdns-ns-out -t NS -o \
-        Srmldni errors -s 20000")
+    _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt \
+        -w massdns-ns-out -t NS -o Srmldni errors -s 20000")
 
     print("#parsing")
     with open("subdomains","a+") as subdomains_file, \
@@ -123,14 +124,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                                         answers)
                 else:
                     errors.add(subdomain)
-    ip_cnames = set()
-    for pair in ([ip_cname[1] for ip_cname in list(valid.values())]):
-        for value in pair:
-            ip_cnames.add(value)
 
     print("#database")
     db = database.DB_Connection( \
         db_credentials[0],db_credentials[1],db_credentials[2]).connect()
+
+    print("#tables")
     db_cursor = db.cursor()
     db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
     db_cursor.execute(f"USE {domain.replace('.','_')}")
@@ -159,11 +158,43 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         size INTEGER, PRIMARY KEY (directory_id), \
                         FOREIGN KEY (subdomain_id) \
                         REFERENCES subdomains(subdomain_id))")
+
+    print("#table ip_cnames")
+    ip_cnames = set()
+    for pair in ([ip_cname[1] for ip_cname in list(valid.values())]):
+        for value in pair:
+            ip_cnames.add(value)
     ip_cnames_str = ""
     for value in ip_cnames:
         ip_cnames_str += f" ('{value}'),"
     db_cursor.execute(f"INSERT INTO ip_cnames(record) \
                     VALUES{ip_cnames_str[:-1]}")
+    db.commit()
+
+    print("#table subdomains")
+    #it won't run rn, but when parse/massdns is updated to return 3 dicts, it\
+    # should be fine
+    for dns_type in [valid,nx,errors]:
+        if(dns_type == valid):
+            classification = "OK"
+        elif(dns_type == nx):
+            classification = "NXDOMAIN"
+        else:
+            classification = "SERVFAIL"
+
+        for subdomain in dns_type.keys():
+            records = set_to_str(dns_type[subdomain][1])
+            for record in dns_type[subdomain][1]:
+                db_cursor.execute(f"SELECT dns_id FROM ip_cnames WHERE \
+                                    record='{record}'")
+                results = db_cursor.fetchall()
+                if(len(results) > 0):
+                    dns_id = results[0][0]
+                    db_cursor.execute(f"INSERT INTO subdomains (hostname,\
+                                        dns_id, dns_records,classification) \
+                                        VALUES ('{subdomain}',{dns_id},\
+                                        '{records}','{classification}')")
+                    break
     db.commit()
 
     print("#delete")
