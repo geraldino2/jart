@@ -22,9 +22,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 -rL {resolvers} -timeout 90")
 
     print("#amass")
-    _ = run_command(f"amass enum -active -config {amass_config} -rf \
-                    {resolvers} -d {domain} -o amass-out\
-                    -passive -nf subfinder-out")
+    _ = run_command(f"amass enum -active -rf {resolvers} -d {domain} \
+                    -o amass-out -passive -nf subfinder-out")
 
     print("#massdns - resolve")
     _ = run_command(f"massdns -r {resolvers} -w massdns-resolve-out -o \
@@ -104,26 +103,30 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         open("massdns-brute-out","r") as brute_out, \
         open("massdns-ns-out","r") as ns_out, \
         open("massdns-resolve-out","r") as resolve_out:
-        lines = subdomains_file.read().split("\n")
+        subdomains_lines = subdomains_file.read().split("\n")
         ns_lines = ns_out.read().split("\n")
         valid,nx,errors = massdns.load \
                             (alt_out.read().split("\n") + \
                             brute_out.read().split("\n") + \
-                            resolve_out.read().split("\n") + \
-                            ns_lines)
-        errors = set()
+                            resolve_out.read().split("\n"))
+        ns_valid = massdns.load(ns_lines)[0]
+        errors = dict()
         ns_records = massdns.load(ns_lines)
         for subdomain in list(ns_records[0].keys()):
-            if(subdomain not in lines):
+            if(subdomain not in subdomains_lines):
+                #1=dns.rdatatype.A 
                 query_result = dns_query.process_query("1.1.1.1",subdomain,1)
+                code = rcode.to_text(query_result[0])
                 if(query_result[1]!="" and query_result[0] == 0):
                     answers = set()
                     for answer in query_result[1].split("\n"):
+                        if(answer[-1:] == "."):
+                            answer = answer[:-1]
                         answers.add(answer)
-                    valid[subdomain] = (rcode.to_text(query_result[0]),\
-                                        answers)
+                    valid[subdomain] = (code,answers)
                 else:
-                    errors.add(subdomain)
+                    if(code in ["SERVFAIL","REFUSED"]):
+                        errors[subdomain] = (code,ns_valid[subdomain][1])
 
     print("#database")
     db = database.DB_Connection( \
@@ -161,9 +164,10 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
 
     print("#table ip_cnames")
     ip_cnames = set()
-    for pair in ([ip_cname[1] for ip_cname in list(valid.values())]):
-        for value in pair:
-            ip_cnames.add(value)
+    for dns_type in [valid,nx,errors]:
+        for pair in ([ip_cname[1] for ip_cname in list(dns_type.values())]):
+            for value in pair:
+                ip_cnames.add(value)
     ip_cnames_str = ""
     for value in ip_cnames:
         ip_cnames_str += f" ('{value}'),"
@@ -172,8 +176,6 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     db.commit()
 
     print("#table subdomains")
-    #it won't run rn, but when parse/massdns is updated to return 3 dicts, it\
-    # should be fine
     for dns_type in [valid,nx,errors]:
         if(dns_type == valid):
             classification = "OK"

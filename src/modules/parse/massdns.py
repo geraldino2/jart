@@ -1,4 +1,4 @@
-def load(lines:list) -> (dict,set,set):
+def load(lines:list) -> (dict,dict,set):
     '''
     Input
         list
@@ -6,30 +6,32 @@ def load(lines:list) -> (dict,set,set):
     Output
         dict
             {subdomain: (code, {IPs})}
-        set
-            NXDOMAIN with CNAME
+        dict
+            NXDOMAIN with CNAME {subdomain: (code, {IPs})}
         set
             SERVFAIL/REFUSED subdomains
     '''
     valid = dict()
-    nxdomain_cname = set()
+    nxdomain_cname = dict()
     errors = set()
     for i in range(len(lines)):
         if(lines[i] != ""):
             terms = lines[i].split(" ")
             if(lines[i][0] == "\t"):
+                answer = terms[2]
+                if(answer[-1:] == "."):
+                    answer = answer[:-1]
                 if(code != "NXDOMAIN"):
-                    if(terms[1] == "A"):
-                        valid[subdomain][1].add(terms[2])
-                    else:
-                        valid[subdomain][1].add(terms[2][:-1])
+                    valid[subdomain][1].add(answer)
+                else:
+                    nxdomain_cname[subdomain][1].add(terms[2][:-1])
             else:
                 code,subdomain = terms[2],terms[3][:-1]
                 if(lines[i+1] != ""):
                     if(code != "NXDOMAIN"):
                         valid[subdomain] = (code,set())
                     else:
-                        nxdomain_cname.add(subdomain)
+                        nxdomain_cname[subdomain] = (code,set())
                 elif(code == "NOERROR" and terms[5] == "NS"):
                     valid[subdomain] = (code,set())
                 elif(code in ["SERVFAIL","REFUSED"]):
