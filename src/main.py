@@ -14,7 +14,7 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
     return(process.communicate()[0],process.communicate()[1])
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
-        amass_config:str,db_credentials:tuple):
+        db_credentials:tuple):
     os.system("cls||clear")
 
     print("#subfinder")
