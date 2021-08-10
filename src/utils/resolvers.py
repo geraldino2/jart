@@ -1,7 +1,7 @@
 import concurrent.futures
 import requests
-import re
 from dns import exception,flags,message,name,query,rdatatype
+from modules.parse import formatting
 
 domain = "uber.com"
 
@@ -27,8 +27,7 @@ def load_resolvers():
         res = requests.get(public_list)
         if(res.status_code == 200):
             for resolver in res.text.split("\n"):
-                valid = re.match("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$",\
-                                resolver)
+                valid = is_ipv4(resolver)
                 if(valid):
                     resolvers.add(resolver)
 

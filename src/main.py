@@ -1,10 +1,9 @@
 import subprocess
 import os
 import mysql
-import re
 import sys
 from dns import rcode
-from modules.parse.collections import set_to_str
+from modules.parse import formatting
 from modules.parse import massdns
 from modules import dns_query
 from modules import database
@@ -233,7 +232,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     with open("ips","w") as ips_file:
         for ip_cname in ip_cnames:
             ip = ip_cname
-            while(not re.match("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$",ip)):
+            while(not formatting.is_ipv4(ip)):
                 ip_query = dns_query.process_query("1.1.1.1",ip,1)
                 ip = ip_query[1].split("\n")[0]
                 if(ip == ""):
