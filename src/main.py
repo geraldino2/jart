@@ -2,11 +2,13 @@ import subprocess
 import os
 import mysql
 import sys
-from dns import rcode
+import tldextract
+from dns import rcode,rdatatype
 from modules.parse import formatting
 from modules.parse import massdns
 from modules import dns_query
 from modules import database
+from modules.subdomain_takeover import Subdomain_Takeover
 
 def run_command(cmd:str) -> (bytes,bytes,bytes):
     cmd = [arg for arg in cmd.split(" ") if arg != ""]
@@ -137,18 +139,19 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                             (alt_out.read().split("\n") + \
                             brute_out.read().split("\n") + \
                             resolve_out.read().split("\n"))
-        ns_valid = massdns.load(ns_lines)[0]
+        massdns_ns = massdns.load(ns_lines)
+        ns_valid = massdns_ns[0]
+        ns_records = massdns_ns
         errors = dict()
-        ns_records = massdns.load(ns_lines)
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in subdomains_lines):
-
-                #1=dns.rdatatype.A 
-                query_result = dns_query.process_query("1.1.1.1",subdomain,1)
+                query_result = dns_query.process_query("1.1.1.1",subdomain,\
+                                                        rdatatype.A)
                 code = rcode.to_text(query_result[0])
                 if(query_result[1]!="" and query_result[0] == 0):
                     answers = set()
                     for answer in query_result[1].split("\n"):
+                        answer = answer.split(" ")[4]
                         if(answer[-1:] == "."):
                             answer = answer[:-1]
                         answers.add(answer)
@@ -233,14 +236,38 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for ip_cname in ip_cnames:
             ip = ip_cname
             while(not formatting.is_ipv4(ip)):
-                ip_query = dns_query.process_query("1.1.1.1",ip,1)
-                ip = ip_query[1].split("\n")[0]
+                ip_query = dns_query.process_query("1.1.1.1",ip,rdatatype.A)
+                ip = ip_query[1].split("\n")[0].split(" ")[4]
                 if(ip == ""):
                     break
             if(ip != ""):
                 if(ip not in ip_cname_link.keys()):
                     ips_file.write(ip + "\n")
                 ip_cname_link[ip] = ip_cname
+
+    print("#subdomain takeover")
+    services_takeover = Subdomain_Takeover(valid)
+    for subdomain in valid.keys():
+        result = services_takeover.check_body_cname(subdomain, "HTML here")
+        if(result != None):
+            print(subdomain,result)
+        mx_result = services_takeover.check_mx(subdomain)
+        if(len(mx_result) > 0):
+            print(subdomain,mx_result)
+
+    services_nx_takeover = Subdomain_Takeover(nx)
+    for subdomain in nx.keys():
+        result = services_nx_takeover.check_cname(subdomain)
+        if(result != None):
+            print(subdomain,result)
+
+    services_ns_takeover = Subdomain_Takeover()
+    for subdomain in errors.keys():
+        for ns in errors[subdomain][1]:
+            ns = tldextract.extract(ns).registered_domain
+            result = services_ns_takeover.check_nxdomain(ns)
+            if(result):
+                print(subdomain,result)
 
     print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \

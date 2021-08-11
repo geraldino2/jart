@@ -1,0 +1,596 @@
+--- 
+- 
+  cname: 
+    - fastly
+  text: 
+    - "Fastly error: unknown domain"
+  nxdomain: false
+  service: fastly
+- 
+  cname: 
+    - pingdom.com
+  text: 
+    - "Sorry, couldn't find the status page"
+  nxdomain: false
+  service: pingdom
+- 
+  cname: 
+    - kinsta.cloud
+  text: 
+    - "No Site For Domain"
+  nxdomain: false
+  service: kinsta
+- 
+  cname: 
+    - proxy.sprintful.com
+  text: 
+    - "The user account associated with this calendar has been deactivated."
+    - "Please contact the owner of this calendar directly in order to book a meeting."
+    - "This domain name does not have a default page configured."
+  nxdomain: false
+  service: sprintful
+- 
+  cname: 
+    - view.ceros.com
+  text: 
+    - "Sorry, page not found"
+    - "Please check the url and"
+    - /view.ceros.com/
+  nxdomain: false
+  service: ceros
+- 
+  cname: 
+    - furyns.com
+  text: 
+    - "https://gemfury.com/404"
+    - "This page could not be found"
+  nxdomain: false
+  service: gemfury
+- 
+  cname: 
+    - read.uberflip.com
+  text: 
+    - "The URL you've accessed does not provide a hub. Please check the URL and try again."
+    - "Non-hub domain"
+  nxdomain: false
+  service: uberflip
+- 
+  cname: 
+    - github.io
+  text: 
+    - "There isn't a GitHub Pages site here."
+  nxdomain: false
+  service: github
+- 
+  cname: 
+    - herokuapp
+  text: 
+    - "No such app"
+  nxdomain: false
+  service: heroku
+- 
+  cname: 
+    - pantheonsite.io
+  text: 
+    - "The gods are wise, but do not know of the site which you seek."
+    - "404 error unknown site!"
+  nxdomain: false
+  service: pantheon
+- 
+  cname: 
+    - domains.tumblr.com
+  text: 
+    - "Whatever you were looking for doesn't currently exist at this address."
+  nxdomain: false
+  service: tumblr
+- 
+  cname: 
+    - wordpress.com
+  text: 
+    - "Do you want to register"
+    - "Warning! Domain mapping upgrade for this domain not found."
+    - "Site names can only contain lowercase letters (a-z) and numbers"
+  nxdomain: false
+  service: wordpress
+- 
+  cname: 
+    - teamwork.com
+  text: 
+    - "Oops - We didn't find your site."
+  nxdomain: false
+  service: teamwork
+- 
+  cname: 
+    - helpjuice.com
+  text: 
+    - "We could not find what you're looking for."
+  nxdomain: false
+  service: helpjuice
+- 
+  cname: 
+    - helpscoutdocs.com
+  text: 
+    - "No settings were found for this company:"
+  nxdomain: false
+  service: helpscout
+- 
+  cname: 
+    - amazonaws
+  text: 
+    - "The specified bucket does not exist"
+  nxdomain: false
+  service: "s3 bucket"
+- 
+  cname: 
+    - elasticbeanstalk.com
+  text: 
+    - ""
+  nxdomain: true
+  service: elasticbeanstalk
+- 
+  cname: 
+    - ghost.io
+  text: 
+    - "The thing you were looking for is no longer here, or never was"
+  nxdomain: false
+  service: ghost
+- 
+  cname: 
+    - myshopify.com
+  text: 
+    - "Sorry, this shop is currently unavailable."
+  nxdomain: false
+  service: shopify
+- 
+  cname: 
+    - uservoice.com
+  text: 
+    - "This UserVoice subdomain is currently available!"
+  nxdomain: false
+  service: uservoice
+- 
+  cname: 
+    - surge.sh
+  text: 
+    - "project not found"
+  nxdomain: false
+  service: surge
+- 
+  cname: 
+    - bitbucket.io
+  text: 
+    - "Repository not found"
+  nxdomain: false
+  service: bitbucket
+- 
+  cname: 
+    - custom.intercom.help
+  text: 
+    - "This page is reserved for artistic dogs."
+    - "Uh oh. That page doesn't exist."
+  nxdomain: false
+  service: intercom
+- 
+  cname: 
+    - proxy.webflow.com
+    - proxy-ssl.webflow.com
+  text: 
+    - "The page you are looking for doesn't exist or has been moved."
+  nxdomain: false
+  service: webflow
+- 
+  cname: 
+    - wishpond.com
+  text: 
+    - "https://www.wishpond.com/404?campaign=true"
+  nxdomain: false
+  service: wishpond
+- 
+  cname: 
+    - aftership.com
+  text: 
+    - "Oops.</h2><p class=\"text-muted text-tight\">The page you're looking for doesn't exist."
+  nxdomain: false
+  service: aftership
+- 
+  cname: 
+    - ideas.aha.io
+  text: 
+    - "There is no portal here ... sending you back to Aha!"
+  nxdomain: false
+  service: aha
+- 
+  cname: 
+    - domains.tictail.com
+  text: 
+    - "to target URL: <a href=\"https://tictail.com"
+    - "Start selling on Tictail."
+  nxdomain: false
+  service: tictail
+- 
+  cname: 
+    - bcvp0rtal.com
+    - brightcovegallery.com
+    - gallery.video
+  text: 
+    - "<p class=\"bc-gallery-error-code\">Error Code: 404</p>"
+  nxdomain: false
+  service: brightcove
+- 
+  cname: 
+    - bigcartel.com
+  text: 
+    - "<h1>Oops! We could’t find that page.</h1>"
+  nxdomain: false
+  service: bigcartel
+- 
+  cname: 
+    - createsend.com
+  text: 
+    - "Double check the URL or <a href=\"mailto:help@createsend.com"
+    - "Trying to access your account?"
+  nxdomain: false
+  service: campaignmonitor
+- 
+  cname: 
+    - simplebooklet.com
+  text: 
+    - "We can't find this <a href=\"https://simplebooklet.com"
+  nxdomain: false
+  service: simplebooklet
+- 
+  cname: 
+    - .gr8.com
+  text: 
+    - "With GetResponse It looks like you’re lost...ing Pages, lead generation has never been easier"
+  nxdomain: false
+  service: getresponse
+- 
+  cname: 
+    - vendecommerce.com
+  text: 
+    - "Looks like you've traveled too far into cyberspace"
+  nxdomain: false
+  service: vend
+- 
+  cname: 
+    - myjetbrains.com
+  text: 
+    - "is not a registered InCloud YouTrack"
+  nxdomain: false
+  service: jetbrains
+- 
+  cname: 
+    - .cloudapp.net
+    - .cloudapp.azure.com
+    - .azurewebsites.net
+    - .blob.core.windows.net
+    - .cloudapp.azure.com
+    - .azure-api.net
+    - .azurehdinsight.net
+    - .azureedge.net
+    - .azurecontainer.io
+    - .database.windows.net
+    - .azuredatalakestore.net
+    - .search.windows.net
+    - .azurecr.io
+    - .redis.cache.windows.net
+    - .azurehdinsight.net
+    - .servicebus.windows.net
+    - .visualstudio.com
+  text: []
+  nxdomain: true
+  service: azure
+- 
+  cname: 
+    - readme.io
+  text: 
+    - "Project doesnt exist... yet!"
+  nxdomain: false
+  service: readme
+- 
+  cname: 
+    - "-portal.apigee.net"
+  text: []
+  nxdomain: true
+  service: apigee
+- 
+  cname: 
+    - domains.smugmug.com
+  text: []
+  nxdomain: true
+  service: smugmug
+- 
+  cname: 
+    - ""
+  text: 
+    - "<a href=\"https://worksites.net/\">Learn more about Worksites.net"
+    - "Hello! Sorry, but the website you’re looking for doesn’t exist."
+    - "Company Not Found"
+  nxdomain: false
+  service: worksites.net
+- 
+  cname: 
+    - uptimerobot.com
+  text: 
+    - "page not found"
+  nxdomain: false
+  service: uptimerobot
+- 
+  cname: 
+    - custom.bnc.lt
+  text: 
+    - branch.io/what-is-applink
+  nxdomain: false
+  service: branchio
+- 
+  cname: 
+    - admin.datocms.com
+  text: 
+    - Loading...
+  nxdomain: false
+  service: datocms
+- 
+  cname: 
+    - vercel-dns.com
+    - vercel.com
+  text: 
+    - "The deployment could not be found on Vercel"
+  nxdomain: false
+  service: vercel
+- 
+  cname: 
+    - flywheelsites.com
+  text: 
+    - "not the site you"
+    - "landed on a page that is hosted by Flywheel"
+  nxdomain: false
+  service: flywheel
+- 
+  cname: 
+    - canny.io
+  text: 
+    - "Company Not Found"
+    - "There is no such company. Did you enter the right URL?"
+  nxdomain: false
+  service: canny
+- 
+  cname: 
+    - airee.ru
+  text: 
+    - "Ошибка 402. Сервис Айри.рф не оплачен"
+    - "Сайт xyz.xyz.ru. , на который вы заходите, не оплатил сервис Айри.рф. Доступ к сайту временно невозможен."
+  nxdomain: false
+  service: airee
+- 
+  cname: 
+    - ngrok.io
+  text: 
+    - Tunnel
+  nxdomain: false
+  service: ngrok
+- 
+  cname: 
+    - strikinglydns.com
+  text: 
+    - "PAGE NOT FOUND"
+    - "come to the right place"
+  nxdomain: false
+  service: strikingly
+- 
+  cname: 
+    - launchrock.com
+  text: 
+    - "It looks like you may have taken a wrong turn somewhere"
+  nxdomain: false
+  service: launchrock
+- 
+  cname: 
+    - agilecrm.com
+  text: 
+    - "Sorry, this page is no longer available"
+    - "Sign up today"
+  nxdomain: false
+  service: "agile crm"
+- 
+  cname: 
+    - smartjobboard.com
+    - mysmartjobboard.com
+  text: 
+    - "Job Board is Unavailable"
+    - "This job board website is either expired or its domain name is invalid"
+  nxdomain: false
+  service: smartjobboard
+- 
+  cname: 
+    - frontify.com
+  text: 
+    - "looks like you got lost"
+    - "404 - Page Not Found</h1>"
+  nxdomain: false
+  service: frontify
+- 
+  cname: 
+    - ""
+  text: 
+    - "If this is your website and you've just created it, try refreshing in a minute"
+  nxdomain: false
+  service: anima
+- 
+  cname: 
+    - landingi.com
+  text: 
+    - "The page you are looking for is not found"
+    - "It looks like you’re lost..."
+  nxdomain: false
+  service: landingi
+- 
+  cname: 
+    - helprace.com
+  text: 
+    - "Admin of this Helprace account needs to set up domain alias"
+    - "Alias not configured!"
+  nxdomain: false
+  service: helprace
+- 
+  cname: 
+    - ""
+  text: 
+    - "The deployment could not be found on Vercel"
+  nxdomain: false
+  service: vercel
+- 
+  cname: 
+    - ""
+  text: 
+    - "This page will be updated automatically when your app is published"
+  nxdomain: false
+  service: appery
+- 
+  cname: 
+    - tilda.ws
+  text: 
+    - "Please renew your subscription"
+    - "Domain is not configured"
+  nxdomain: false
+  service: tilda
+- 
+  cname: 
+    - readthedocs.io
+  text: 
+    - "is unknown to Read the Docs"
+    - "Invalid Host"
+  nxdomain: false
+  service: readthedocs
+- 
+  cname: 
+    - cargocollective.com
+  text: 
+    - "Connect it by adding it to your Settings."
+    - "404 Not Found"
+    - "Should you require further assistance"
+  nxdomain: false
+  service: "cargo collective"
+- 
+  cname: 
+    - ns1.digitalocean.com
+    - ns2.digitalocean.com
+  text: 
+    - ""
+  nxdomain: false
+  service: "digital ocean"
+- 
+  cname: 
+    - trydiscourse.com
+  text: 
+    - "Sorry, the site you are looking for does not exist"
+  nxdomain: false
+  service: discourse
+- 
+  cname: 
+    - hosted-by-discourse.com
+    - discoursehosting.net
+  text: 
+    - ""
+  nxdomain: true
+  service: "discourse (dns)"
+- 
+  cname: 
+    - tumblr.com
+  text: 
+    - "Whatever you were looking for doesn't currently exist at this address"
+  nxdomain: false
+  service: tumblr
+- 
+  cname: 
+    - hatenablog.com
+  text: 
+    - "404 Blog is not found"
+  nxdomain: false
+  service: hatenablog
+- 
+  cname: 
+    - activehosted.com
+  text: 
+    - "alt=\"LIGHTTPD - fly light.\""
+  nxdomain: false
+  service: activecampaign
+- 
+  cname: 
+    - freshdesk.com
+  text: 
+    - "Maybe this is still fresh!"
+  nxdomain: false
+  service: freshdesk
+- 
+  cname: 
+    - freshservice.com
+  text: 
+    - "Maybe this is still fresh!"
+  nxdomain: false
+  service: freshservice
+- 
+  cname: 
+    - sites.hubspot.net
+  text: 
+    - "Domain Not found"
+  nxdomain: false
+  service: hubspot
+- 
+  cname: 
+    - mykajabi.com
+  text: 
+    - "<h1>The page you were looking for doesn't exist.</h1>"
+  nxdomain: false
+  service: kajabi
+- 
+  cname: 
+    - leadpages.net
+  text: 
+    - "Double check that you have the right web address and give it another go!</p>"
+  nxdomain: false
+  service: leadpages
+- 
+  cname: 
+    - mashery.com
+  text: 
+    - "Unrecognized domain"
+  nxdomain: false
+  service: mashery
+- 
+  cname: 
+    - proposify.biz
+  text: 
+    - "If you need immediate assistance, please contact"
+  nxdomain: false
+  service: proposify
+- 
+  cname: 
+    - smugmug.com
+  text: 
+    - 404
+  nxdomain: false
+  service: smugmug
+- 
+  cname: 
+    - sgizmo.com
+    - surveygizmo.eu
+    - sgizmoca.com
+  text: 
+    - data-html-name
+  nxdomain: false
+  service: surveygizmo
+- 
+  cname: 
+    - tave.com
+  text: 
+    - "<h1>Error 404: Page Not Found</h1>"
+  nxdomain: false
+  service: tave
+- 
+  cname: 
+    - thinkific.com
+  text: 
+    - "You may have mistyped the address or the page may have moved"
+  nxdomain: false
+  service: thinkific

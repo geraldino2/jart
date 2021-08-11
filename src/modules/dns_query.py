@@ -14,8 +14,7 @@ def process_query(resolver:str,host:str,question:int) -> (int,str):
     try:
         response = query.udp(request,resolver,5)
         if(len(response.answer)>0):
-            return((response.rcode(),response.answer[0].to_text() \
-                    .split(" ")[4]))
+            return((response.rcode(),response.answer[0].to_text()))
         return((response.rcode(),""))
     except exception.Timeout:
         return(("TIMEOUT",""))
