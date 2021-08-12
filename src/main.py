@@ -40,6 +40,11 @@ def add_service(db_cursor,dns_id:int,port:int,transport_protocol:str,\
                         WHERE NOT EXISTS ( SELECT 1 FROM services WHERE \
                         dns_id = {dns_id} AND port = {port} ) LIMIT 1;")
 
+def add_vulnerability(db_cursor,hostname:str,vuln:str):
+    db_cursor.execute(f"INSERT INTO vulnerabilities(subdomain_id,\
+                        vulnerability) VALUES ((SELECT subdomain_id FROM \
+                        subdomains WHERE hostname='{hostname}'),'{vuln}')")
+
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         db_credentials:tuple):
     os.system("cls||clear")
@@ -182,11 +187,11 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         transport_protocol VARCHAR(3) NOT NULL, fingerprint\
                         VARCHAR(307), PRIMARY KEY (dns_id, port), \
                         FOREIGN KEY (dns_id) REFERENCES ip_cnames(dns_id))")
-    db_cursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
+    db_cINTOursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
                         vulnerability VARCHAR(1024), PRIMARY KEY \
-                        (vulnerability_id, subdomain_id), FOREIGN KEY \
-                        (subdomain_id) REFERENCES subdomains(subdomain_id))")
+                        (vulnerability_id), FOREIGN KEY (subdomain_id) \
+                        REFERENCES subdomains(subdomain_id))")
     db_cursor.execute("CREATE TABLE directories (directory_id INTEGER \
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
                         path VARCHAR(2083) NOT NULL, status_code INTEGER, \
@@ -216,7 +221,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             classification = "SERVFAIL"
 
         for subdomain in dns_type.keys():
-            records = set_to_str(dns_type[subdomain][1])
+            records = formatting.set_to_str(dns_type[subdomain][1])
             for record in dns_type[subdomain][1]:
                 db_cursor.execute(f"SELECT dns_id FROM ip_cnames WHERE \
                                     record='{record}'")
@@ -250,24 +255,33 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     for subdomain in valid.keys():
         result = services_takeover.check_body_cname(subdomain, "HTML here")
         if(result != None):
-            print(subdomain,result)
+            add_vulnerability(db_cursor,subdomain,\
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] SVC {result}"))
         mx_result = services_takeover.check_mx(subdomain)
         if(len(mx_result) > 0):
-            print(subdomain,mx_result)
-
+            add_vulnerability(db_cursor,subdomain,\
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
+    db.commit()
     services_nx_takeover = Subdomain_Takeover(nx)
     for subdomain in nx.keys():
         result = services_nx_takeover.check_cname(subdomain)
         if(result != None):
-            print(subdomain,result)
-
+            add_vulnerability(db_cursor,subdomain,
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] NX {result}"))
+    db.commit()
     services_ns_takeover = Subdomain_Takeover()
     for subdomain in errors.keys():
         for ns in errors[subdomain][1]:
             ns = tldextract.extract(ns).registered_domain
             result = services_ns_takeover.check_nxdomain(ns)
             if(result):
-                print(subdomain,result)
+                add_vulnerability(db_cursor,subdomain,
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
+    db.commit()
 
     print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \

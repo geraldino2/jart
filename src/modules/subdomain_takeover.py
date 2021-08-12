@@ -14,18 +14,20 @@ class Subdomain_Takeover(object):
         for fingerprint in fingerprints:
             if(fingerprint["nxdomain"] == False):
                 for cname in fingerprint["cname"]:
-                    if(cname in list(self.dns_cnames[host][1])[0]):
-                        for text_fingerprint in fingerprint["text"]:
-                            if(text_fingerprint in text):
-                                return(fingerprint["service"])
+                    for record in self.dns_cnames[host][1]:
+                        if(cname in record):
+                            for text_fingerprint in fingerprint["text"]:
+                                if(text_fingerprint in text):
+                                    return(fingerprint["service"])
         return(None)
 
     def check_cname(self,host:str):
         for fingerprint in fingerprints:
             if(fingerprint["nxdomain"] == True):
                 for cname in fingerprint["cname"]:
-                    if(cname in list(self.dns_cnames[host][1])[0]):
-                        return(fingerprint["service"])
+                    for record in self.dns_cnames[host][1]:
+                        if(cname in record):
+                            return(fingerprint["service"])
         return(None)
 
     def check_nxdomain(self,host:str):
