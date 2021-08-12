@@ -3,11 +3,13 @@ import os
 import mysql
 import sys
 import tldextract
+from requests.structures import CaseInsensitiveDict
 from dns import rcode,rdatatype
 from modules.parse import formatting
 from modules.parse import massdns
 from modules import dns_query
 from modules import database
+from modules import http_requests
 from modules.subdomain_takeover import Subdomain_Takeover
 
 def run_command(cmd:str) -> (bytes,bytes,bytes):
@@ -43,7 +45,7 @@ def add_service(db_cursor,dns_id:int,port:int,transport_protocol:str,\
 def add_vulnerability(db_cursor,hostname:str,vuln:str):
     db_cursor.execute(f"INSERT INTO vulnerabilities(subdomain_id,\
                         vulnerability) VALUES ((SELECT subdomain_id FROM \
-                        subdomains WHERE hostname='{hostname}'),'{vuln}')")
+                        subdomains WHERE hostname='{hostname}'),'{vuln}')")    
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         db_credentials:tuple):
@@ -194,9 +196,11 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         REFERENCES subdomains(subdomain_id))")
     db_cursor.execute("CREATE TABLE directories (directory_id INTEGER \
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
+                        port INTEGER NOT NULL, tls TINYINT NOT NULL, \
                         path VARCHAR(2083) NOT NULL, status_code INTEGER, \
-                        size INTEGER, PRIMARY KEY (directory_id), \
-                        FOREIGN KEY (subdomain_id) \
+                        source_code MEDIUMTEXT CHARACTER SET utf8, headers \
+                        VARCHAR(2048) CHARACTER SET utf8, PRIMARY KEY \
+                        (directory_id), FOREIGN KEY (subdomain_id) \
                         REFERENCES subdomains(subdomain_id))")
 
     print("#table ip_cnames")
@@ -250,39 +254,6 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                     ips_file.write(ip + "\n")
                 ip_cname_link[ip] = ip_cname
 
-    print("#subdomain takeover")
-    services_takeover = Subdomain_Takeover(valid)
-    for subdomain in valid.keys():
-        result = services_takeover.check_body_cname(subdomain, "HTML here")
-        if(result != None):
-            add_vulnerability(db_cursor,subdomain,\
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] SVC {result}"))
-        mx_result = services_takeover.check_mx(subdomain)
-        if(len(mx_result) > 0):
-            add_vulnerability(db_cursor,subdomain,\
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
-    db.commit()
-    services_nx_takeover = Subdomain_Takeover(nx)
-    for subdomain in nx.keys():
-        result = services_nx_takeover.check_cname(subdomain)
-        if(result != None):
-            add_vulnerability(db_cursor,subdomain,
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] NX {result}"))
-    db.commit()
-    services_ns_takeover = Subdomain_Takeover()
-    for subdomain in errors.keys():
-        for ns in errors[subdomain][1]:
-            ns = tldextract.extract(ns).registered_domain
-            result = services_ns_takeover.check_nxdomain(ns)
-            if(result):
-                add_vulnerability(db_cursor,subdomain,
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
-    db.commit()
-
     print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \
                   --host-timeout 30m -max-retries 7 -sS -oG nmap-out -v \
@@ -327,11 +298,51 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         transport_protocol,state,service,'')
     db.commit()
 
+    print("#get-sockets")
+    db_cursor.execute("SELECT hostname,port FROM subdomains INNER JOIN \
+                        services AS svc ON svc.dns_id = subdomains.dns_id")
+    for result in db_cursor.fetchall():
+        print((result[0],result[1]))
+        print(http_requests.request(result[0],result[1]))
+
+    print("#subdomain takeover")
+    services_takeover = Subdomain_Takeover(valid)
+    for subdomain in valid.keys():
+        result = services_takeover.check_body_cname(subdomain, "HTML here")
+        if(result != None):
+            add_vulnerability(db_cursor,subdomain,\
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] SVC {result}"))
+        mx_result = services_takeover.check_mx(subdomain)
+        if(len(mx_result) > 0):
+            add_vulnerability(db_cursor,subdomain,\
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
+    db.commit()
+    services_nx_takeover = Subdomain_Takeover(nx)
+    for subdomain in nx.keys():
+        result = services_nx_takeover.check_cname(subdomain)
+        if(result != None):
+            add_vulnerability(db_cursor,subdomain,
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] NX {result}"))
+    db.commit()
+    services_ns_takeover = Subdomain_Takeover()
+    for subdomain in errors.keys():
+        for ns in errors[subdomain][1]:
+            ns = tldextract.extract(ns).registered_domain
+            result = services_ns_takeover.check_nxdomain(ns)
+            if(result):
+                add_vulnerability(db_cursor,subdomain,
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
+    db.commit()
+
     print("#delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
                 "alt-subdomains","tobrute","t-errors","t-nxdomains", \
                 "t-subdomains","amass-out","subfinder-out","subdomains", \
-                "errors","nxdomains"]
+                "errors","nxdomains","ips"]
     for file in to_remove:
         try:
             os.remove(file)
