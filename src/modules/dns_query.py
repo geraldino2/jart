@@ -1,6 +1,6 @@
 from dns import exception,flags,message,name,query,rdatatype
 
-def process_query(resolver:str,host:str,question:int) -> (int,str):
+def process_query(resolver:str,host:str,question:int,retries=3) -> (int,str):
     '''
     Output
         status
@@ -11,10 +11,12 @@ def process_query(resolver:str,host:str,question:int) -> (int,str):
     request.flags |= flags.AD
     request.find_rrset(request.additional,name.root,ADDITIONAL_RDCLASS, \
                        rdatatype.OPT, create=True, force_unique=True)
-    try:
-        response = query.udp(request,resolver,5)
-        if(len(response.answer)>0):
-            return((response.rcode(),response.answer[0].to_text()))
-        return((response.rcode(),""))
-    except exception.Timeout:
-        return(("TIMEOUT",""))
+    for _ in range(retries):
+        try:
+            response = query.udp(request,resolver,5)
+            if(len(response.answer)>0):
+                return((response.rcode(),response.answer[0].to_text()))
+            return((response.rcode(),""))
+        except exception.Timeout:
+            continue
+    return(4,"")
