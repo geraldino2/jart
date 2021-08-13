@@ -356,9 +356,17 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     print(time.time() - inicio)
 
     print("#subdomain takeover")
+    inicio = time.time()
     services_takeover = Subdomain_Takeover(valid)
     for subdomain in valid.keys():
-        result = services_takeover.check_body_cname(subdomain, "HTML here")
+        source_code = ""
+        db_cursor.execute(f"SELECT source_code FROM directories WHERE path =\
+                         '/' AND subdomain_id = (SELECT subdomain_id FROM \
+                         subdomains WHERE hostname = '{subdomain}') AND \
+                         (port = 80 OR port = 443)")
+        for code in db_cursor.fetchall():
+            source_code += code[0]
+        result = services_takeover.check_body_cname(subdomain,source_code)
         if(result != None):
             add_vulnerability(db_cursor,subdomain,\
                             formatting.normalize_whitespaces( \
@@ -387,6 +395,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                             formatting.normalize_whitespaces( \
                             f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
     db.commit()
+    print(time.time() - inicio)
 
     print("#delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
