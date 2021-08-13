@@ -35,14 +35,14 @@ def add_service(db_cursor,dns_id:int,port:int,transport_protocol:str,\
     if(fingerprint == ""):
         fingerprint = "NULL"
     else:
-        fingerprint = f"'{fingerprint}'"
+        fingerprint = "'{}'".format(fingerprint.replace("'","\\'"))
     db_cursor.execute(f"INSERT INTO services (dns_id,port,service,state,\
-                        transport_protocol,fingerprint) SELECT '{dns_id}' AS \
+                        transport_protocol,fingerprint) SELECT {dns_id} AS \
                         dns_id, {port} AS port, '{service}' AS service, \
                         '{state}' AS state, '{transport_protocol}' AS \
                         transport_protocol, {fingerprint} AS fingerprint\
                         WHERE NOT EXISTS ( SELECT 1 FROM services WHERE \
-                        dns_id = {dns_id} AND port = {port} ) LIMIT 1;")
+                        dns_id = {dns_id} AND port = {port} ) LIMIT 1")
 
 def add_vulnerability(db_cursor,hostname:str,vuln:str):
     db_cursor.execute(f"INSERT INTO vulnerabilities(subdomain_id,\
@@ -285,12 +285,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     inicio = time.time()
     print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \
-                  --host-timeout 30m -max-retries 7 -sS -oG nmap-out -v \
+                  --host-timeout 30m -max-retries 7 -sSV -oG nmap-out -v \
                   --open -iL ips --top-ports 2000 -n")
     print(time.time() - inicio)
 
     inicio = time.time()
-    print("#masscan")split
+    print("#masscan")
     _ = run_command("masscan -iL ips -p- --rate 20000 -oG masscan-out")
     print(time.time() - inicio)
 
@@ -302,13 +302,15 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             for line in text.split("\n")[2:-2]:
                 if("Status: " not in line):
                     line = line.split("\t")
-                    for terms in line[1].split(" ")[1:]:
+                    line = line[1][7:]
+                    for terms in line.split(", "):
                         terms = terms.split("/")
                         port = int(terms[0])
                         transport_protocol = terms[2]
                         state = terms[1]
                         service = terms[4]
                         fingerprint = terms[6]
+                        print(fingerprint)
                         for record in ip_cname_link[ip]:
                             add_service(db_cursor,\
                                         get_dns_id(db_cursor,record),port,\
