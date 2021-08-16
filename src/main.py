@@ -54,9 +54,10 @@ def add_vulnerability(db_cursor,hostname:str,vuln:str):
 def probe_http(hostname:str,port:int,subdomain_id:int,source:str):
     response = http_requests.probe(hostname,port)
     if(response[0] != -1):
-        return("({},{},{},'/',{},'{}','{}','{}')".format(subdomain_id,port,\
-                response[3],response[0],response[1].replace("'","\\'"), \
-                str(response[2]).replace("'","\\'")[:16362],source))
+        return("({},{},{},'/',{},{},'{}','{}','{}')".format(subdomain_id, \
+                port,response[3],response[0],(len(response[1])+ \
+                len(response[2])),response[1].replace("'","\\'"), \
+                str(response[2]).replace("'","\\'"),source))
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         db_credentials:tuple):
@@ -69,23 +70,23 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     scan_external_redirection = 0
     targets = {domain}
 
-    inicio = time.time()
+    start_time = time.time()
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
                 -rL {resolvers} -timeout 90")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#amass")
     _ = run_command(f"amass enum -active -rf {resolvers} -d {domain} \
                     -o amass-out -passive -nf subfinder-out")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#massdns - resolve")
     _ = run_command(f"massdns -r {resolvers} -w massdns-resolve-out -o \
                       Srmldni amass-out -s 20000")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#create brute_wordlist")
     with open("tobrute","w") as saida:
@@ -93,11 +94,11 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             _ = saida.write("{}.{}\n".format(parameter.replace("\n",""), \
                               domain))
 
-    inicio = time.time()
+    start_time = time.time()
     print("#massdns - brute")
     _ = run_command(f"massdns -r {resolvers} -w massdns-brute-out -o \
         Srmldni tobrute -s 20000")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#join | sort | uniq")
     with open("massdns-resolve-out","r") as resolve_out, \
@@ -111,17 +112,17 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             nxdomain_join.write("\n".join(nxdomain))
             errors_join.write("\n".join(errors))
 
-    inicio = time.time()
+    start_time = time.time()
     print("#altdns")
     _ = run_command(f"altdns -i t-subdomains -o altdns-out -w \
                     {alt_wordlist}")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#massdns - brute alt")
     _ = run_command(f"massdns -r {resolvers} -w massdns-alt-out -o \
         Srmldni altdns-out -s 200000")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#join | sort | uniq")
     with open("massdns-alt-out","r") as alt_out, \
@@ -156,13 +157,13 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 if(domain not in valid):
                     errors_join.write(domain+"\n")
 
-    inicio = time.time()
+    start_time = time.time()
     print("#massdns - ns")
     _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt \
         -w massdns-ns-out -t NS -o Srmldni errors -s 20000")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#parsing")
     with open("subdomains","a+") as subdomains_file, \
         open("massdns-alt-out","r") as alt_out, \
@@ -195,7 +196,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 else:
                     if(code in ["SERVFAIL","REFUSED"]):
                         errors[subdomain] = (code,ns_valid[subdomain][1])
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#database")
     db = database.DB_Connection( \
@@ -223,7 +224,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         transport_protocol VARCHAR(3) NOT NULL, fingerprint\
                         VARCHAR(307), PRIMARY KEY (dns_id, port), \
                         FOREIGN KEY (dns_id) REFERENCES ip_cnames(dns_id))")
-    db_cINTOursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
+    db_cursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
                         vulnerability VARCHAR(1024), PRIMARY KEY \
                         (vulnerability_id), FOREIGN KEY (subdomain_id) \
@@ -232,9 +233,10 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
                         port INTEGER NOT NULL, tls TINYINT NOT NULL, \
                         path VARCHAR(2083) NOT NULL, status_code INTEGER, \
-                        source_code MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE \
-                        utf8mb4_unicode_ci, headers VARCHAR(16362) CHARACTER \
-                        SET utf8mb4 COLLATE utf8mb4_unicode_ci, PRIMARY KEY \
+                        size INTEGER, source_code MEDIUMTEXT CHARACTER SET \
+                        utf8mb4 COLLATE utf8mb4_unicode_ci, headers \
+                        MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE \
+                        utf8mb4_unicode_ci, source VARCHAR(16), PRIMARY KEY\
                         (directory_id), FOREIGN KEY (subdomain_id) \
                         REFERENCES subdomains(subdomain_id))")
     db_cursor.execute("CREATE TABLE emails (email_id INTEGER AUTO_INCREMENT, \
@@ -300,19 +302,19 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                     ip_cname_link[ip] = []
                 ip_cname_link[ip].append(ip_cname)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \
                   --host-timeout 30m -max-retries 7 -sSV -oG nmap-out -v \
                   --open -iL ips --top-ports 2000 -n")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#masscan")
     _ = run_command("masscan -iL ips -p- --rate 20000 -oG masscan-out")
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#add nmap to db")
     with open("nmap-out","r") as nmap_file:
         text = nmap_file.read()
@@ -335,9 +337,9 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                                         transport_protocol,state,service,\
                                         fingerprint)
     db.commit()
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
-    inicio = time.time()
+    start_time = time.time()
     print("#add masscan to db")
     with open("masscan-out","r") as masscan_file:
         text = masscan_file.read()
@@ -354,15 +356,15 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                     add_service(db_cursor,get_dns_id(db_cursor,record),port,\
                                 transport_protocol,state,service,'')
     db.commit()
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#probe http")
-    inicio = time.time()
+    start_time = time.time()
     db_cursor.execute("SELECT hostname,port,subdomain_id FROM subdomains \
                         INNER JOIN services AS svc \
                         ON svc.dns_id = subdomains.dns_id")
     query = "INSERT INTO directories(subdomain_id,port,tls,path,status_code,\
-            source_code,headers,source) VALUES "
+            size,source_code,headers,source) VALUES "
     with concurrent.futures.ThreadPoolExecutor(max_workers=2048) as executor:
         threads = {executor.submit(probe_http,\
                                     result[0],result[1],result[2],"forced"): 
@@ -373,39 +375,60 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 query += f"{result},"
     db_cursor.execute(query[:-1])
     db.commit()
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#check redirections")
-    db_cursor.execute("SELECT * FROM directories")
-    for result in db_cursor.fetchall():
-        headers = ast.literal_eval(result[7])
-        if(headers.get("location") == None):
-            continue
-        redirection = headers.get("location")
-        redirection_domain = tldextract.extract(redirection).registered_domain
-        if(redirection_domain in targets):
-            parsed_url = parse.urlsplit(redirection)
-            db_cursor.execute(f"SELECT EXISTS (SELECT 1 FROM subdomains WHERE hostname = '{parsed_url.netloc}' LIMIT 1)")
-            if(len(db_cursor.fetchall()) == 0):
-                print(74234) #add_subdomain() #todo
-            if(":" in parsed_url.netloc):
-                port = int(parsed_url.netloc.split(":")[1])
-            elif(parsed_url.scheme == "http"):
-                port = 80
-            else:
-                port = 443
-            tls = 1 if parsed_url.scheme == "https" else 0
-            req,response = http_requests.request(redirection)
-            if(req == -1):
+    for _ in range(3): #this is, for sure, not the best way #todo?
+        db_cursor.execute("SELECT * FROM directories")
+        for result in db_cursor.fetchall():
+            if(result[8] == None):
                 continue
-            headers = str(req.headers)
-            if(len(headers) > 16362):
-                headers = headers[:16362]
-            db_cursor.execute("INSERT INTO directories(subdomain_id,port,tls,path,status_code,source_code,headers,source) VALUES ((SELECT subdomain_id FROM subdomains WHERE hostname = '{}' LIMIT 1),{},{},'{}',{},'{}','{}','redirect')".format(parsed_url.netloc,port,tls,parsed_url.path,req.status_code,response.replace("'","\\'"),headers.replace("'","\\'")))
-    db.commit()
+            headers = ast.literal_eval(result[8])
+            if(headers.get("location") == None):
+                continue
+            redirection = headers.get("location")
+            redirection_domain = \
+                            tldextract.extract(redirection).registered_domain
+            if(redirection_domain in targets):
+                parsed_url = parse.urlsplit(redirection)
+                db_cursor.execute(f"SELECT EXISTS (SELECT 1 FROM subdomains \
+                                    WHERE hostname = '{parsed_url.netloc}' \
+                                    LIMIT 1)")
+                if(len(db_cursor.fetchall()) == 0):
+                    print(74234) #add_subdomain() #todo
+                if(":" in parsed_url.netloc):
+                    port = int(parsed_url.netloc.split(":")[1])
+                elif(parsed_url.scheme == "http"):
+                    port = 80
+                else:
+                    port = 443
+                tls = 1 if parsed_url.scheme == "https" else 0
+                db_cursor.execute(f"SELECT 1 FROM directories WHERE \
+                                    (subdomain_id = (SELECT subdomain_id FROM\
+                                    subdomains WHERE hostname = \
+                                    '{parsed_url.netloc}') AND port = {port}\
+                                    AND tls = {tls} AND path = \
+                                    '{parsed_url.path}') LIMIT 1")
+                if(len(db_cursor.fetchall()) == 1):
+                    continue
+                req,response = http_requests.request(redirection)
+                if(req == -1):
+                    continue
+                db_cursor.execute("INSERT INTO directories(subdomain_id,port,\
+                                    tls,path,status_code,size,source_code,\
+                                    headers,source) VALUES ((SELECT \
+                                    subdomain_id FROM subdomains WHERE \
+                                    hostname = '{}' LIMIT 1),{},{},'{}',{},\
+                                    {},'{}','{}','redirect')\
+                                    ".format(parsed_url.netloc,port,tls,\
+                                    parsed_url.path,req.status_code,\
+                                    (len(response) + len(req.headers)), \
+                                    response.replace("'","\\'"),\
+                                    str(req.headers).replace("'","\\'")))
+        db.commit()
 
     print("#subdomain takeover")
-    inicio = time.time()
+    start_time = time.time()
     services_takeover = Subdomain_Takeover(valid)
     for subdomain in valid.keys():
         source_code = ""
@@ -444,7 +467,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                             formatting.normalize_whitespaces( \
                             f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
     db.commit()
-    print(time.time() - inicio)
+    print(time.time() - start_time)
 
     print("#delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \

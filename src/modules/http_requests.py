@@ -13,6 +13,8 @@ def probe(hostname:str,port:int,path:str="/") -> (int,str,dict,bool):
 
     for protocol in protocol_link.keys():
         req,response = request(f"{protocol}://{hostname}:{port}{path}")
+        if(req == -1):
+            continue
         protocol_link[protocol] = (req.status_code,response,\
                                     req.headers,int(protocol=="https"))
 
