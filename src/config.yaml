@@ -1,11 +1,11 @@
 --- 
-alt_wordlist: '/home/apolo2/SecLists/Discovery/DNS/small-alt.txt'
+alt_wordlist: '/home/apolo2/SecLists/Discovery/DNS/bigger-alt.txt'
 brute_wordlist: '/home/apolo2/SecLists/Discovery/DNS/dns-The-Biggest.txt'
-domain: 'example.com'
+domain: 'uber.com'
 resolvers: '/home/apolo2/.config/resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: 'password_here'
+db_pass: 'passhere'
 scan_external_redirection: 0
 max_http_redirection: 7
 max_dns_retries: 3
@@ -13,3 +13,8 @@ max_http_retries: 3
 http_req_timeout: 6
 http_rcv_timeout: 12
 max_http_size: 16000000
+nuclei_templates: '/home/apolo2/nuclei-templates'
+max_http_rps: 1200
+nuclei_bulksize: 100
+nuclei_concurrency: 30
+max_http_probe_threads: 2048
