@@ -187,7 +187,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         answers.add(answer)
                     valid[subdomain] = (code,answers)
                 else:
-                    if(code in ["SERVFAIL","REFUSED"]):
+                    if(code in ['SERVFAIL','REFUSED']):
                         errors[subdomain] = (code,ns_valid[subdomain][1])
 
     print("#database")
@@ -218,8 +218,9 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         FOREIGN KEY (dns_id) REFERENCES ip_cnames(dns_id))")
     db_cursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
-                        endpoint VARCHAR(2083), vulnerability VARCHAR(1024), \
-                        severity VARCHAR(16), PRIMARY KEY (vulnerability_id), \
+                        endpoint VARCHAR(2083), vulnerability VARCHAR(64), \
+                        info VARCHAR(1024), severity VARCHAR(16),\
+                        PRIMARY KEY (vulnerability_id), \
                         FOREIGN KEY (subdomain_id) REFERENCES \
                         subdomains(subdomain_id))")
     db_cursor.execute("CREATE TABLE directories (directory_id INTEGER \
@@ -440,15 +441,24 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         results = nuclei_output.read().split("\n")[:-1]
     for result in results:
         result = json.loads(result)
-        vulnerability,severity,url = result["templateID"], \
-                                    result["info"]["severity"],\
-                                    result["matched"]
+        vulnerability,severity,url = result['templateID'], \
+                                    result['info']['severity'],\
+                                    result['matched']
+        info = ""
+        keys = result.keys()
+        if("matcher_name" in keys):
+            info = result['matcher_name']
+        if(result['info']['name'] == "Wappalyzer Technology Detection"):
+            if(info == "wordpress"):
+                with open("wordpress-urls","a") as wp_file:
+                    wp_file.write(url+"\n")
         db_cursor.execute("INSERT INTO vulnerabilities(subdomain_id,endpoint,\
-                           vulnerability,severity) VALUES ({},'{}','{}','{}')"\
+                           vulnerability,info,severity) VALUES ({},'{}','{}',\
+                           '{}','{}')"\
                            .format("(SELECT subdomain_id FROM subdomains\
                                     WHERE hostname='{}')".format(parse.\
                                     urlsplit(url).netloc.split(":")[0]),url,\
-                                    vulnerability,severity))
+                                    vulnerability,info,severity))
     db.commit()
 
     print("#subdomain takeover")
@@ -492,10 +502,10 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     db.commit()
 
     print("#delete")
-    to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
-                "alt-subdomains","tobrute","t-errors","t-nxdomains", \
-                "t-subdomains","amass-out","subfinder-out","subdomains", \
-                "errors","nxdomains","ips"]
+    to_remove = ['altdns-out','alt-errors','alt-nxdomain-cname', \
+                'alt-subdomains','tobrute','t-errors','t-nxdomains', \
+                't-subdomains','amass-out','subfinder-out','subdomains', \
+                'errors','nxdomains','ips']
     for file in to_remove:
         try:
             os.remove(file)
