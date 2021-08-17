@@ -7,7 +7,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 ua = "Mozilla/5.0 (X11; Linux x86_64; rv:90.0) Gecko/20100101 Firefox/90.0"
 ua_accept_headers = {"User-Agent": ua, "Accept": "*/*"}
 
-def probe(hostname:str,port:int,path:str="/") -> (int,str,dict,bool):
+def probe(hostname:str,port:int,path:str="/",req_timeout:int=6,\
+            rcv_timeout:int=12,max_size:int=int(16e6),retries:int=3)\
+            -> (int,str,dict,bool):
+
     http_response = https_response = (-1,"","",False)
     protocol_link = {"http":http_response,"https":https_response}
 

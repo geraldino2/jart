@@ -5,4 +5,11 @@ domain: 'example.com'
 resolvers: '/home/apolo2/.config/resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: 'pinkdog666'
+db_pass: 'password_here'
+scan_external_redirection: 0
+max_http_redirection: 7
+max_dns_retries: 3
+max_http_retries: 3
+http_req_timeout: 6
+http_rcv_timeout: 12
+max_http_size: 16000000

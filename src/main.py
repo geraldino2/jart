@@ -52,7 +52,9 @@ def add_vulnerability(db_cursor,hostname:str,vuln:str):
                         subdomains WHERE hostname='{hostname}'),'{vuln}')")
 
 def probe_http(hostname:str,port:int,subdomain_id:int,source:str):
-    response = http_requests.probe(hostname,port)
+    response = http_requests.probe(hostname,port,"/",http_req_timeout,\
+                                    http_rcv_timeout,max_http_size,\
+                                    max_http_retries)
     if(response[0] != -1):
         return("({},{},{},'/',{},{},'{}','{}','{}')".format(subdomain_id, \
                 port,response[3],response[0],(len(response[1])+ \
@@ -60,14 +62,16 @@ def probe_http(hostname:str,port:int,subdomain_id:int,source:str):
                 str(response[2]).replace("'","\\'"),source))
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
-        db_credentials:tuple):
+        db_credentials:tuple,scan_external_redirection:int,\
+        max_http_redirection:int,max_dns_retries:int,max_http_retries:int,\
+        http_req_timeout:int,http_rcv_timeout:int,max_http_size:int):
+
     if(os.geteuid() != 0):
         print("nmap/masscan requires sudo.")
         sys.exit(1)
 
     os.system("cls||clear")
 
-    scan_external_redirection = 0
     targets = {domain}
 
     start_time = time.time()
@@ -183,7 +187,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in subdomains_lines):
                 query_result = dns_query.process_query("1.1.1.1",subdomain,\
-                                                        rdatatype.A)
+                                                        rdatatype.A,\
+                                                        max_dns_retries)
                 code = rcode.to_text(query_result[0])
                 if(query_result[1]!="" and query_result[0] == 0):
                     answers = set()
@@ -292,7 +297,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for ip_cname in ip_cnames:
             ip = ip_cname
             while(not formatting.is_ipv4(ip)):
-                ip_query = dns_query.process_query("1.1.1.1",ip,rdatatype.A)
+                ip_query = dns_query.process_query("1.1.1.1",ip,rdatatype.A,\
+                                                    max_dns_retries)
                 if(ip_query[1] == ""):
                     break
                 ip = ip_query[1].split("\n")[-1:][0].split(" ")[4]
@@ -378,7 +384,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     print(time.time() - start_time)
 
     print("#check redirections")
-    for _ in range(3): #this is, for sure, not the best way #todo?
+    for _ in range(max_http_redirection):
         db_cursor.execute("SELECT * FROM directories")
         for result in db_cursor.fetchall():
             if(result[8] == None):
@@ -411,7 +417,10 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                                     '{parsed_url.path}') LIMIT 1")
                 if(len(db_cursor.fetchall()) == 1):
                     continue
-                req,response = http_requests.request(redirection)
+                req,response = http_requests.request(redirection,\
+                                    http_req_timeout,http_rcv_timeout,\
+                                    max_http_size,\
+                                    max_http_retries)
                 if(req == -1):
                     continue
                 db_cursor.execute("INSERT INTO directories(subdomain_id,port,\
