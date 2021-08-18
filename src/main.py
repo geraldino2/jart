@@ -1,6 +1,5 @@
 import subprocess
 import os
-import mysql
 import sys
 import tldextract
 import concurrent.futures
@@ -25,7 +24,7 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
 
 
 def get_dns_id(db_cursor,record:str) -> int:
-    db_cursor.execute(f"SELECT dns_id FROM ip_cnames WHERE record='{record}'")
+    db_cursor.execute("SELECT dns_id FROM ip_cnames WHERE record=%s",(record,))
     result = db_cursor.fetchall()
     if(len(result) > 0):
         return(int(result[0][0]))
@@ -48,19 +47,20 @@ def add_service(db_cursor,dns_id:int,port:int,transport_protocol:str,\
                         dns_id = {dns_id} AND port = {port} ) LIMIT 1")
 
 def add_vulnerability(db_cursor,hostname:str,vuln:str):
-    db_cursor.execute(f"INSERT INTO vulnerabilities(subdomain_id,\
+    db_cursor.execute("INSERT INTO vulnerabilities(subdomain_id,\
                         vulnerability) VALUES ((SELECT subdomain_id FROM \
-                        subdomains WHERE hostname='{hostname}'),'{vuln}')")
+                        subdomains WHERE hostname=%s),%s)",(hostname,vuln))
 
-def probe_http(hostname:str,port:int,subdomain_id:int,source:str):
+def probe_http(hostname:str,port:int,subdomain_id:int,http_req_timeout:int,\
+                http_rcv_timeout:int,max_http_size:int,max_http_retries:int):
     response = http_requests.probe(hostname,port,"/",http_req_timeout,\
                                     http_rcv_timeout,max_http_size,\
                                     max_http_retries)
     if(response[0] != -1):
-        return("({},{},{},'/',{},{},'{}','{}','{}')".format(subdomain_id, \
-                port,response[3],response[0],(len(response[1])+ \
-                len(response[2])),response[1].replace("'","\\'"), \
-                str(response[2]).replace("'","\\'"),source))
+        return(subdomain_id,port,response[3],response[0],len(response[1]), \
+                response[1],str(response[2]))
+        #subdomain_id,port,tls,status,size,source_code,headers
+    return(None)
 
 def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         db_credentials:tuple,scan_external_redirection:int,\
@@ -73,9 +73,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         print("nmap/masscan requires sudo.")
         sys.exit(1)
 
-    os.system("cls||clear")
-
     targets = {domain}
+    os.system("cls||clear")
 
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
@@ -111,7 +110,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             errors_join.write("\n".join(errors))
 
 
-    print("#altdns")
+    print("#altdns")("'","\\'"))
     _ = run_command(f"altdns -i t-subdomains -o altdns-out -w \
                     {alt_wordlist}")
 
@@ -175,8 +174,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in subdomains_lines):
                 query_result = dns_query.process_query("1.1.1.1",subdomain,\
-                                                        rdatatype.A,\
-                                                        max_dns_retries)
+                                                       rdatatype.A,\
+                                                       max_dns_retries)
                 code = rcode.to_text(query_result[0])
                 if(query_result[1]!="" and query_result[0] == 0):
                     answers = set()
@@ -196,12 +195,15 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
 
     print("#tables")
     db_cursor = db.cursor()
-    db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
+    db_cursor.execute("CREATE DATABASE %s",(domain.replace('.','_'),))
+    db_cursor.execute("SET GLOBAL sql_mode=''")
     db_cursor.execute("SET NAMES utf8mb4")
-    db_cursor.execute(f"ALTER DATABASE {domain.replace('.','_')} CHARACTER \
-                      SET = utf8mb4 COLLATE = utf8mb4_unicode_ci")
-    db_cursor.execute(f"USE {domain.replace('.','_')}")
+    db_cursor.execute("ALTER DATABASE %s CHARACTER SET = utf8mb4 COLLATE =\
+                        utf8mb4_unicode_ci",(domain.replace('.','_'),))
+    db_cursor.execute("SET character_set_connection=utf8mb4")
+    db_cursor.execute("USE %s",(domain.replace('.','_'),))
     db.commit()
+
     db_cursor.execute("CREATE TABLE ip_cnames (dns_id INTEGER AUTO_INCREMENT,\
                         record VARCHAR(255) NOT NULL, PRIMARY KEY (dns_id))")
     db_cursor.execute("CREATE TABLE subdomains (subdomain_id INTEGER \
@@ -216,6 +218,13 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         transport_protocol VARCHAR(3) NOT NULL, fingerprint\
                         VARCHAR(307), PRIMARY KEY (dns_id, port), \
                         FOREIGN KEY (dns_id) REFERENCES ip_cnames(dns_id))")
+    db_cursor.execute("CREATE TABLE source_codes (source_code_id INTEGER \
+                        AUTO_INCREMENT, source_code MEDIUMTEXT NOT NULL, \
+                        screenshot_path VARCHAR(512), \
+                        PRIMARY KEY(source_code_id))")
+    db_cursor.execute("CREATE TABLE headers (header_id INTEGER AUTO_INCREMENT,\
+                        header_dict MEDIUMTEXT NOT NULL, \
+                        PRIMARY KEY (header_id))")
     db_cursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
                         AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
                         endpoint VARCHAR(2083), vulnerability VARCHAR(64), \
@@ -224,15 +233,16 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         FOREIGN KEY (subdomain_id) REFERENCES \
                         subdomains(subdomain_id))")
     db_cursor.execute("CREATE TABLE directories (directory_id INTEGER \
-                        AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
-                        port INTEGER NOT NULL, tls TINYINT NOT NULL, \
-                        path VARCHAR(2083) NOT NULL, status_code INTEGER, \
-                        size INTEGER, source_code MEDIUMTEXT CHARACTER SET \
-                        utf8mb4 COLLATE utf8mb4_unicode_ci, headers \
-                        MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE \
-                        utf8mb4_unicode_ci, source VARCHAR(16), PRIMARY KEY\
+                        AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, port \
+                        INTEGER NOT NULL, tls TINYINT NOT NULL, path \
+                        VARCHAR(2083) NOT NULL, status_code INTEGER, \
+                        size INTEGER, source_code_id INTEGER, header_id \
+                        INTEGER, source VARCHAR(16), PRIMARY KEY \
                         (directory_id), FOREIGN KEY (subdomain_id) \
-                        REFERENCES subdomains(subdomain_id))")
+                        REFERENCES subdomains(subdomain_id), \
+                        FOREIGN KEY (source_code_id) REFERENCES \
+                        source_codes(source_code_id), FOREIGN KEY \
+                        (header_id) REFERENCES headers(header_id))")
     db_cursor.execute("CREATE TABLE emails (email_id INTEGER AUTO_INCREMENT, \
                         email_address VARCHAR(320) NOT NULL, directory_id \
                         INTEGER, PRIMARY KEY (email_id), FOREIGN KEY \
@@ -245,6 +255,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         AUTO_INCREMENT, hostname VARCHAR(255) NOT NULL, \
                         PRIMARY KEY(target_id))")
 
+    print("#table targets")
+    for target in targets:
+        db_cursor.execute("INSERT INTO targets(hostname) VALUES (%s)",\
+                            (target,))
+    db.commit()
+
     print("#table ip_cnames")
     ip_cnames = set()
     for value in valid.keys():
@@ -252,8 +268,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     ip_cnames_str = ""
     for value in ip_cnames:
         ip_cnames_str += f" ('{value}'),"
-    db_cursor.execute(f"INSERT INTO ip_cnames(record) \
-                    VALUES{ip_cnames_str[:-1]}")
+    db_cursor.execute("INSERT INTO ip_cnames(record) VALUES %s",\
+                        (ip_cnames_str[:-1],))
     db.commit()
 
     print("#table subdomains")
@@ -268,15 +284,15 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         for subdomain in dns_type.keys():
             records = formatting.set_to_str(dns_type[subdomain][1])
             for record in dns_type[subdomain][1]:
-                db_cursor.execute(f"SELECT dns_id FROM ip_cnames WHERE \
-                                    record='{record}'")
+                db_cursor.execute("SELECT dns_id FROM ip_cnames WHERE record\
+                                    =%s",(record,))
                 results = db_cursor.fetchall()
                 if(len(results) > 0):
                     dns_id = results[0][0]
-                    db_cursor.execute(f"INSERT INTO subdomains (hostname,\
+                    db_cursor.execute("INSERT INTO subdomains (hostname,\
                                         dns_id, dns_records,classification) \
-                                        VALUES ('{subdomain}',{dns_id},\
-                                        '{records}','{classification}')")
+                                        VALUES (%s,%s,%s,%s)",(subdomain,\
+                                        dns_id,records,classification))
                     break
     db.commit()
 
@@ -298,7 +314,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 ip_cname_link[ip].append(ip_cname)
 
 
-    print("#nmap")
+    print("#nmap")("'","\\'"))
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \
                   --host-timeout 30m -max-retries 7 -sSV -oG nmap-out -v \
                   --open -iL ips --top-ports 2000 -n")
@@ -350,27 +366,43 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     db_cursor.execute("SELECT hostname,port,subdomain_id FROM subdomains \
                         INNER JOIN services AS svc \
                         ON svc.dns_id = subdomains.dns_id")
-    query = "INSERT INTO directories(subdomain_id,port,tls,path,status_code,\
-            size,source_code,headers,source) VALUES "
+    results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=\
                                         max_http_probe_threads) as executor:
         threads = {executor.submit(probe_http,\
-                                    result[0],result[1],result[2],"forced"): 
+                                    result[0],result[1],result[2],\
+                                    http_req_timeout,http_rcv_timeout,\
+                                    max_http_size,max_http_retries): 
                     result for result in db_cursor.fetchall()}
         for thread in threads:
             result = thread.result()
             if(result != None):
-                query += f"{result},"
-    db_cursor.execute(query[:-1])
+                results.append(result)
+    for result in results:
+        db_cursor.execute("INSERT INTO source_codes(source_code) SELECT * \
+                            FROM (SELECT %s) AS tmp  WHERE NOT EXISTS \
+                            (SELECT 1 FROM source_codes WHERE source_code \
+                            = %s) LIMIT 1",(result[5],result[5]))
+        db_cursor.execute("INSERT INTO headers(header_dict) SELECT * \
+                            FROM (SELECT %s) AS tmp  WHERE NOT EXISTS \
+                            (SELECT 1 FROM headers WHERE header_dict \
+                            = %s) LIMIT 1",(result[6],result[6]))
+        db_cursor.execute("INSERT INTO directories(subdomain_id,port,tls,\
+                            path,status_code,size,source_code_id,header_id,\
+                            source) VALUES (%s,%s,%s,'/',%s,%s,\
+                            (SELECT source_code_id FROM source_codes \
+                            WHERE source_code = %s),(SELECT header_id \
+                            FROM headers WHERE header_dict = %s),'forced')",\
+                            result)
     db.commit()
 
     print("#check redirections")
     for _ in range(max_http_redirection):
-        db_cursor.execute("SELECT * FROM directories")
+        db_cursor.execute("SELECT header_dict FROM headers")
         for result in db_cursor.fetchall():
-            if(result[8] == None):
+            if(result[0] == None):
                 continue
-            headers = ast.literal_eval(result[8])
+            headers = ast.literal_eval(result[0])
             if(headers.get("location") == None):
                 continue
             redirection = headers.get("location")
@@ -379,10 +411,11 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             if(redirection_domain in targets):
                 parsed_url = parse.urlsplit(redirection)
                 db_cursor.execute(f"SELECT EXISTS (SELECT 1 FROM subdomains \
-                                    WHERE hostname = '{parsed_url.netloc}' \
-                                    LIMIT 1)")
-                if(len(db_cursor.fetchall()) == 0):
+                                    WHERE hostname = %s LIMIT 1)",\
+                                    (parsed_url.netloc,))
+                if(db_cursor.fetchall()[0] == 0):
                     print(74234) #add_subdomain() #todo
+                    continue
                 if(":" in parsed_url.netloc):
                     port = int(parsed_url.netloc.split(":")[1])
                 elif(parsed_url.scheme == "http"):
@@ -390,12 +423,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                 else:
                     port = 443
                 tls = 1 if parsed_url.scheme == "https" else 0
-                db_cursor.execute(f"SELECT 1 FROM directories WHERE \
+                db_cursor.execute("SELECT 1 FROM directories WHERE \
                                     (subdomain_id = (SELECT subdomain_id FROM\
-                                    subdomains WHERE hostname = \
-                                    '{parsed_url.netloc}') AND port = {port}\
-                                    AND tls = {tls} AND path = \
-                                    '{parsed_url.path}') LIMIT 1")
+                                    subdomains WHERE hostname = %s) AND port \
+                                    = %s AND tls = %s AND path = %s) \
+                                    LIMIT 1",(parsed_url.netloc,port,tls,\
+                                    parsed_url.path))
                 if(len(db_cursor.fetchall()) == 1):
                     continue
                 req,response = http_requests.request(redirection,\
@@ -404,17 +437,28 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                                     max_http_retries)
                 if(req == -1):
                     continue
+                db_cursor.execute("INSERT INTO source_codes(source_code) \
+                                    SELECT * FROM (SELECT %s) AS tmp  WHERE \
+                                    NOT EXISTS (SELECT 1 FROM source_codes \
+                                    WHERE source_code = %s) LIMIT 1",\
+                                    (response,response))
+                db_cursor.execute("INSERT INTO headers(header_dict) SELECT * \
+                                    FROM (SELECT %s) AS tmp  WHERE NOT EXISTS\
+                                    (SELECT 1 FROM headers WHERE header_dict \
+                                    = %s) LIMIT 1",\
+                                    (str(req.headers),str(req.headers)))
                 db_cursor.execute("INSERT INTO directories(subdomain_id,port,\
-                                    tls,path,status_code,size,source_code,\
-                                    headers,source) VALUES ((SELECT \
+                                    tls,path,status_code,size,source_code_id,\
+                                    header_id,source) VALUES ((SELECT \
                                     subdomain_id FROM subdomains WHERE \
-                                    hostname = '{}' LIMIT 1),{},{},'{}',{},\
-                                    {},'{}','{}','redirect')\
-                                    ".format(parsed_url.netloc,port,tls,\
+                                    hostname = %s LIMIT 1),%s,%s,%s,\
+                                    %s,%s,(SELECT source_code_id FROM \
+                                    source_codes WHERE source_code = %s),\
+                                    (SELECT header_id FROM headers WHERE \
+                                    header_dict = %s),'redirection')",\
+                                    (parsed_url.netloc,port,tls,\
                                     parsed_url.path,req.status_code,\
-                                    (len(response) + len(req.headers)), \
-                                    response.replace("'","\\'"),\
-                                    str(req.headers).replace("'","\\'")))
+                                    len(response),response,str(req.headers)))
         db.commit()
     
     print("#create url list")
@@ -465,10 +509,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
     services_takeover = Subdomain_Takeover(valid)
     for subdomain in valid.keys():
         source_code = ""
-        db_cursor.execute(f"SELECT source_code FROM directories WHERE path =\
-                         '/' AND subdomain_id = (SELECT subdomain_id FROM \
-                         subdomains WHERE hostname = '{subdomain}') AND \
-                         (port = 80 OR port = 443)")
+        db_cursor.execute("SELECT sc.source_code FROM directories AS dir \
+                            INNER JOIN source_codes AS sc ON \
+                            sc.source_code_id = dir.source_code_id \
+                            WHERE path = '/' AND subdomain_id = (SELECT \
+                            subdomain_id FROM subdomains WHERE hostname = %s)\
+                            AND (port = 80 OR port = 443)",(subdomain,))
         for code in db_cursor.fetchall():
             source_code += code[0]
         result = services_takeover.check_body_cname(subdomain,source_code)
