@@ -110,7 +110,7 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             errors_join.write("\n".join(errors))
 
 
-    print("#altdns")("'","\\'"))
+    print("#altdns")
     _ = run_command(f"altdns -i t-subdomains -o altdns-out -w \
                     {alt_wordlist}")
 
@@ -195,29 +195,40 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
 
     print("#tables")
     db_cursor = db.cursor()
-    db_cursor.execute("CREATE DATABASE %s",(domain.replace('.','_'),))
+    db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
+    db_cursor.execute(f"USE {domain.replace('.','_')}")
     db_cursor.execute("SET GLOBAL sql_mode=''")
     db_cursor.execute("SET NAMES utf8mb4")
-    db_cursor.execute("ALTER DATABASE %s CHARACTER SET = utf8mb4 COLLATE =\
-                        utf8mb4_unicode_ci",(domain.replace('.','_'),))
+    db_cursor.execute(f"ALTER DATABASE {domain.replace('.','_')} CHARACTER \
+                        SET = utf8mb4 COLLATE = utf8mb4_unicode_ci")
     db_cursor.execute("SET character_set_connection=utf8mb4")
-    db_cursor.execute("USE %s",(domain.replace('.','_'),))
     db.commit()
 
-    db_cursor.execute("CREATE TABLE ip_cnames (dns_id INTEGER AUTO_INCREMENT,\
-                        record VARCHAR(255) NOT NULL, PRIMARY KEY (dns_id))")
+    db_cursor.execute("CREATE TABLE dns_records (dns_id INTEGER \
+                        AUTO_INCREMENT, record VARCHAR(255) NOT NULL, \
+                        type VARCHAR(8), rcode VARCHAR(8),\
+                        PRIMARY KEY (dns_id), UNIQUE(record,type))")
     db_cursor.execute("CREATE TABLE subdomains (subdomain_id INTEGER \
                         AUTO_INCREMENT, hostname VARCHAR(255) NOT NULL, \
-                        dns_id INTEGER NOT NULL, dns_records VARCHAR(1024), \
-                        classification VARCHAR (8), datetime TIMESTAMP \
-                        DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY \
-                        (subdomain_id), FOREIGN KEY (dns_id) \
-                        REFERENCES ip_cnames(dns_id))")
-    db_cursor.execute("CREATE TABLE services (dns_id INTEGER, port INTEGER, \
+                        datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, \
+                        PRIMARY KEY (subdomain_id))")
+    db_cursor.execute("CREATE TABLE dns_link (record_id INTEGER \
+                        AUTO_INCREMENT, subdomain_id INTEGER, dns_id \
+                        INTEGER, PRIMARY KEY(record_id), \
+                        FOREIGN KEY(subdomain_id) \
+                        REFERENCES subdomains(subdomain_id), \
+                        FOREIGN KEY (dns_id) \
+                        REFERENCES dns_records(dns_id))")
+    db_cursor.execute("CREATE TABLE cname_resolutions (resolution_id INTEGER \
+                        AUTO_INCREMENT, dns_id INTEGER, record \
+                        VARCHAR(255), PRIMARY KEY (resolution_id), \
+                        FOREIGN KEY (dns_id) REFERENCES dns_records(dns_id))")
+    db_cursor.execute("CREATE TABLE services (dns_id INTEGER, port INTEGER,\
                         state VARCHAR(14), service VARCHAR(32),\
                         transport_protocol VARCHAR(3) NOT NULL, fingerprint\
                         VARCHAR(307), PRIMARY KEY (dns_id, port), \
-                        FOREIGN KEY (dns_id) REFERENCES ip_cnames(dns_id))")
+                        FOREIGN KEY (dns_id) REFERENCES \
+                        dns_records(dns_id))")
     db_cursor.execute("CREATE TABLE source_codes (source_code_id INTEGER \
                         AUTO_INCREMENT, source_code MEDIUMTEXT NOT NULL, \
                         screenshot_path VARCHAR(512), \
@@ -257,64 +268,63 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
 
     print("#table targets")
     for target in targets:
-        db_cursor.execute("INSERT INTO targets(hostname) VALUES (%s)",\
-                            (target,))
+        db_cursor.execute("INSERT INTO targets(hostname) SELECT * FROM \
+                            (SELECT %s) AS tmp WHERE NOT EXISTS (SELECT 1 \
+                            FROM targets WHERE hostname=%s LIMIT 1)",\
+                            (target,target))
     db.commit()
 
-    print("#table ip_cnames")
-    ip_cnames = set()
-    for value in valid.keys():
-        ip_cnames.add(value)
-    ip_cnames_str = ""
-    for value in ip_cnames:
-        ip_cnames_str += f" ('{value}'),"
-    db_cursor.execute("INSERT INTO ip_cnames(record) VALUES %s",\
-                        (ip_cnames_str[:-1],))
+    print("#tables dns_records,subdomains,dns_link")
+    for classification in [valid,nx,errors]:
+        for key in classification.keys():
+            db_cursor.execute("INSERT INTO subdomains(hostname) VALUES (%s)",\
+                                (key,))
+            db_cursor.execute("SELECT subdomain_id FROM subdomains WHERE\
+                                hostname=%s",(key,))
+            subdomain_id = db_cursor.fetchall()[0]
+            for ip_cname in classification[key][1]:
+                query_question = "A" if formatting.is_ipv4(ip_cname) \
+                                else "CNAME"
+                if(classification == errors):
+                    query_question = "NS"
+                query_rcode = classification[key][0]
+                db_cursor.execute("INSERT INTO dns_records(record,type,rcode)\
+                                    SELECT * FROM (SELECT %s,%s,%s) AS tmp \
+                                    WHERE NOT EXISTS (SELECT 1 FROM \
+                                    dns_records WHERE record=%s AND type=%s \
+                                    LIMIT 1)",(ip_cname,query_question,\
+                                    query_rcode,ip_cname,query_question))
+                db_cursor.execute("INSERT INTO dns_link(subdomain_id,dns_id)\
+                                    VALUES (%s,(SELECT dns_id FROM \
+                                    dns_records WHERE record=%s))",\
+                                    (subdomain_id,ip_cname))
     db.commit()
 
-    print("#table subdomains")
-    for dns_type in [valid,nx,errors]:
-        if(dns_type == valid):
-            classification = "OK"
-        elif(dns_type == nx):
-            classification = "NXDOMAIN"
-        else:
-            classification = "SERVFAIL"
-
-        for subdomain in dns_type.keys():
-            records = formatting.set_to_str(dns_type[subdomain][1])
-            for record in dns_type[subdomain][1]:
-                db_cursor.execute("SELECT dns_id FROM ip_cnames WHERE record\
-                                    =%s",(record,))
-                results = db_cursor.fetchall()
-                if(len(results) > 0):
-                    dns_id = results[0][0]
-                    db_cursor.execute("INSERT INTO subdomains (hostname,\
-                                        dns_id, dns_records,classification) \
-                                        VALUES (%s,%s,%s,%s)",(subdomain,\
-                                        dns_id,records,classification))
-                    break
+    print("#table cname_resolutions")
+    db_cursor.execute("SELECT dns_id,record FROM dns_records WHERE (type=\
+                        'CNAME')")
+    for result in db_cursor.fetchall():
+        dns_id,ips = result[0],[result[1]]
+        while(not formatting.is_ipv4(ips[0])):
+            ip_query = dns_query.process_query("1.1.1.1",ips[0],rdatatype.A,\
+                                                max_dns_retries)
+            if(ip_query[1] == ""):
+                break
+            ips = []
+            for record in ip_query[1].split("\n")[-1:]:
+                ips.append(record.split(" ")[4])
+            for ip in ips:
+                if(ip[-1:] == "."):
+                    ip = ip[:-1]
+                db_cursor.execute("INSERT INTO cname_resolutions(dns_id,\
+                                    record) VALUES (%s,%s)",(dns_id,ip))
     db.commit()
 
-    print("#ip-cnames/ips file")
-    ip_cname_link = dict()
+    print("#ips file")
     with open("ips","w") as ips_file:
-        for ip_cname in ip_cnames:
-            ip = ip_cname
-            while(not formatting.is_ipv4(ip)):
-                ip_query = dns_query.process_query("1.1.1.1",ip,rdatatype.A,\
-                                                    max_dns_retries)
-                if(ip_query[1] == ""):
-                    break
-                ip = ip_query[1].split("\n")[-1:][0].split(" ")[4]
-            if(ip != ""):
-                if(ip not in ip_cname_link.keys()):
-                    ips_file.write(ip + "\n")
-                    ip_cname_link[ip] = []
-                ip_cname_link[ip].append(ip_cname)
+        TODO
 
-
-    print("#nmap")("'","\\'"))
+    print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \
                   --host-timeout 30m -max-retries 7 -sSV -oG nmap-out -v \
                   --open -iL ips --top-ports 2000 -n")
@@ -382,11 +392,11 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
         db_cursor.execute("INSERT INTO source_codes(source_code) SELECT * \
                             FROM (SELECT %s) AS tmp  WHERE NOT EXISTS \
                             (SELECT 1 FROM source_codes WHERE source_code \
-                            = %s) LIMIT 1",(result[5],result[5]))
+                            = %s LIMIT 1)",(result[5],result[5]))
         db_cursor.execute("INSERT INTO headers(header_dict) SELECT * \
                             FROM (SELECT %s) AS tmp  WHERE NOT EXISTS \
                             (SELECT 1 FROM headers WHERE header_dict \
-                            = %s) LIMIT 1",(result[6],result[6]))
+                            = %s LIMIT 1)",(result[6],result[6]))
         db_cursor.execute("INSERT INTO directories(subdomain_id,port,tls,\
                             path,status_code,size,source_code_id,header_id,\
                             source) VALUES (%s,%s,%s,'/',%s,%s,\
