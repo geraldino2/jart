@@ -1,11 +1,12 @@
 --- 
+root_path: '/home/apolo2/Desktop/jart/src'
 alt_wordlist: '/home/apolo2/SecLists/Discovery/DNS/bigger-alt.txt'
 brute_wordlist: '/home/apolo2/SecLists/Discovery/DNS/dns-The-Biggest.txt'
 domain: 'uber.com'
 resolvers: '/home/apolo2/.config/resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: 'passhere'
+db_pass: '111111password!!!!!!'
 scan_external_redirection: 0
 max_http_redirection: 7
 max_dns_retries: 3

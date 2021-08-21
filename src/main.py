@@ -10,7 +10,8 @@ from urllib import parse
 from requests.structures import CaseInsensitiveDict
 from dns import rcode,rdatatype
 from modules.parse import formatting,massdns
-from modules import database,dns_query,http_requests
+from modules.database import db_conn
+from modules import dns_query,http_requests
 from modules.subdomain_takeover import Subdomain_Takeover
 
 def run_command(cmd:str) -> (bytes,bytes,bytes):
@@ -24,7 +25,8 @@ def run_command(cmd:str) -> (bytes,bytes,bytes):
 
 
 def get_dns_id(db_cursor,record:str) -> int:
-    db_cursor.execute("SELECT dns_id FROM ip_cnames WHERE record=%s",(record,))
+    db_cursor.execute("SELECT dns_id FROM dns_records WHERE record=%s",\
+                        (record,))
     result = db_cursor.fetchall()
     if(len(result) > 0):
         return(int(result[0][0]))
@@ -62,8 +64,8 @@ def probe_http(hostname:str,port:int,subdomain_id:int,http_req_timeout:int,\
         #subdomain_id,port,tls,status,size,source_code,headers
     return(None)
 
-def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
-        db_credentials:tuple,scan_external_redirection:int,\
+def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
+        alt_wordlist:str,db_credentials:tuple,scan_external_redirection:int,\
         max_http_redirection:int,max_dns_retries:int,max_http_retries:int,\
         http_req_timeout:int,http_rcv_timeout:int,max_http_size:int,\
         nuclei_templates:str,max_http_rps:int,nuclei_bulksize:int,\
@@ -190,81 +192,26 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         errors[subdomain] = (code,ns_valid[subdomain][1])
 
     print("#database")
-    db = database.DB_Connection( \
+    db = db_conn.DB_Connection( \
         db_credentials[0],db_credentials[1],db_credentials[2]).connect()
 
     print("#tables")
     db_cursor = db.cursor()
-    db_cursor.execute(f"CREATE DATABASE {domain.replace('.','_')}")
+    db_cursor.execute("CREATE DATABASE IF NOT EXISTS {} CHARACTER SET = \
+                        utf8mb4 COLLATE = utf8mb4_unicode_ci".format(\
+                        domain.replace('.','_')))
     db_cursor.execute(f"USE {domain.replace('.','_')}")
     db_cursor.execute("SET GLOBAL sql_mode=''")
     db_cursor.execute("SET NAMES utf8mb4")
-    db_cursor.execute(f"ALTER DATABASE {domain.replace('.','_')} CHARACTER \
-                        SET = utf8mb4 COLLATE = utf8mb4_unicode_ci")
     db_cursor.execute("SET character_set_connection=utf8mb4")
     db.commit()
 
-    db_cursor.execute("CREATE TABLE dns_records (dns_id INTEGER \
-                        AUTO_INCREMENT, record VARCHAR(255) NOT NULL, \
-                        type VARCHAR(8), rcode VARCHAR(8),\
-                        PRIMARY KEY (dns_id), UNIQUE(record,type))")
-    db_cursor.execute("CREATE TABLE subdomains (subdomain_id INTEGER \
-                        AUTO_INCREMENT, hostname VARCHAR(255) NOT NULL, \
-                        datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP, \
-                        PRIMARY KEY (subdomain_id))")
-    db_cursor.execute("CREATE TABLE dns_link (record_id INTEGER \
-                        AUTO_INCREMENT, subdomain_id INTEGER, dns_id \
-                        INTEGER, PRIMARY KEY(record_id), \
-                        FOREIGN KEY(subdomain_id) \
-                        REFERENCES subdomains(subdomain_id), \
-                        FOREIGN KEY (dns_id) \
-                        REFERENCES dns_records(dns_id))")
-    db_cursor.execute("CREATE TABLE cname_resolutions (resolution_id INTEGER \
-                        AUTO_INCREMENT, dns_id INTEGER, record \
-                        VARCHAR(255), PRIMARY KEY (resolution_id), \
-                        FOREIGN KEY (dns_id) REFERENCES dns_records(dns_id))")
-    db_cursor.execute("CREATE TABLE services (dns_id INTEGER, port INTEGER,\
-                        state VARCHAR(14), service VARCHAR(32),\
-                        transport_protocol VARCHAR(3) NOT NULL, fingerprint\
-                        VARCHAR(307), PRIMARY KEY (dns_id, port), \
-                        FOREIGN KEY (dns_id) REFERENCES \
-                        dns_records(dns_id))")
-    db_cursor.execute("CREATE TABLE source_codes (source_code_id INTEGER \
-                        AUTO_INCREMENT, source_code MEDIUMTEXT NOT NULL, \
-                        screenshot_path VARCHAR(512), \
-                        PRIMARY KEY(source_code_id))")
-    db_cursor.execute("CREATE TABLE headers (header_id INTEGER AUTO_INCREMENT,\
-                        header_dict MEDIUMTEXT NOT NULL, \
-                        PRIMARY KEY (header_id))")
-    db_cursor.execute("CREATE TABLE vulnerabilities (vulnerability_id INTEGER\
-                        AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, \
-                        endpoint VARCHAR(2083), vulnerability VARCHAR(64), \
-                        info VARCHAR(1024), severity VARCHAR(16),\
-                        PRIMARY KEY (vulnerability_id), \
-                        FOREIGN KEY (subdomain_id) REFERENCES \
-                        subdomains(subdomain_id))")
-    db_cursor.execute("CREATE TABLE directories (directory_id INTEGER \
-                        AUTO_INCREMENT, subdomain_id INTEGER NOT NULL, port \
-                        INTEGER NOT NULL, tls TINYINT NOT NULL, path \
-                        VARCHAR(2083) NOT NULL, status_code INTEGER, \
-                        size INTEGER, source_code_id INTEGER, header_id \
-                        INTEGER, source VARCHAR(16), PRIMARY KEY \
-                        (directory_id), FOREIGN KEY (subdomain_id) \
-                        REFERENCES subdomains(subdomain_id), \
-                        FOREIGN KEY (source_code_id) REFERENCES \
-                        source_codes(source_code_id), FOREIGN KEY \
-                        (header_id) REFERENCES headers(header_id))")
-    db_cursor.execute("CREATE TABLE emails (email_id INTEGER AUTO_INCREMENT, \
-                        email_address VARCHAR(320) NOT NULL, directory_id \
-                        INTEGER, PRIMARY KEY (email_id), FOREIGN KEY \
-                        (directory_id) REFERENCES directories(directory_id))")
-    db_cursor.execute("CREATE TABLE links (link_id INTEGER AUTO_INCREMENT, \
-                        path VARCHAR(2083) NOT NULL, directory_id INTEGER,\
-                        type VARCHAR(8), PRIMARY KEY(link_id), FOREIGN KEY\
-                        (directory_id) REFERENCES directories(directory_id))")
-    db_cursor.execute("CREATE TABLE targets (target_id INTEGER \
-                        AUTO_INCREMENT, hostname VARCHAR(255) NOT NULL, \
-                        PRIMARY KEY(target_id))")
+    print("#create tables")
+    with open("{}/modules/database/create-tables.sql".format(\
+            root_path)) as queries_file:
+        create_table_queries = queries_file.read().split("---")
+    for sql_query in create_table_queries:
+        db_cursor.execute(sql_query)
 
     print("#table targets")
     for target in targets:
@@ -309,6 +256,8 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
             ip_query = dns_query.process_query("1.1.1.1",ips[0],rdatatype.A,\
                                                 max_dns_retries)
             if(ip_query[1] == ""):
+                db_cursor.execute("DELETE FROM cname_resolutions WHERE\
+                                    dns_id=%s",(dns_id,))
                 break
             ips = []
             for record in ip_query[1].split("\n")[-1:]:
@@ -320,9 +269,20 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                                     record) VALUES (%s,%s)",(dns_id,ip))
     db.commit()
 
-    print("#ips file")
+    print("#ips file, ip_cname_link")
+    with open("{}/modules/database/select-hostname_ipv4.sql".format(\
+                root_path)) as queries_file:
+        hostname_ipv4_queries = queries_file.read().split("---")
     with open("ips","w") as ips_file:
-        TODO
+        ip_cname_link  = dict()
+        for sql_query in hostname_ipv4_queries:
+            db_cursor.execute(sql_query)
+            for result in db_cursor.fetchall():
+                if(result[1] not in ip_cname_link.keys()):
+                    ip_cname_link[result[1]] = []
+                ip_cname_link[result[1]].append(result[0])
+        for ip in ip_cname_link.keys():
+            ips_file.write(ip + "\n")
 
     print("#nmap")
     _ = run_command("nmap -T4 --min-hostgroup 128 --max-hostgroup 2048 \
@@ -347,7 +307,6 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                         state = terms[1]
                         service = terms[4]
                         fingerprint = terms[6]
-                        print(fingerprint)
                         for record in ip_cname_link[ip]:
                             add_service(db_cursor,\
                                         get_dns_id(db_cursor,record),port,\
@@ -371,11 +330,12 @@ def run(domain:str,resolvers:str,brute_wordlist:str,alt_wordlist:str,\
                     add_service(db_cursor,get_dns_id(db_cursor,record),port,\
                                 transport_protocol,state,service,'')
     db.commit()
-
+ 
     print("#probe http")
-    db_cursor.execute("SELECT hostname,port,subdomain_id FROM subdomains \
-                        INNER JOIN services AS svc \
-                        ON svc.dns_id = subdomains.dns_id")
+    db_cursor.execute("SELECT sbd.hostname,svc.port,dnl.subdomain_id FROM \
+                        subdomains AS sbd INNER JOIN dns_link AS dnl ON \
+                        sbd.subdomain_id=dnl.subdomain_id INNER JOIN services\
+                        AS svc ON svc.dns_id=dnl.dns_id")
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=\
                                         max_http_probe_threads) as executor:
