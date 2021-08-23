@@ -9,7 +9,7 @@ import json
 from urllib import parse
 from requests.structures import CaseInsensitiveDict
 from dns import rcode,rdatatype
-from modules.parse import formatting,massdns
+from modules.parse import formatting,massdns,http_extract
 from modules.database import db_conn
 from modules import dns_query,http_requests
 from modules.subdomain_takeover import Subdomain_Takeover
@@ -473,6 +473,21 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
                                     WHERE hostname='{}')".format(parse.\
                                     urlsplit(url).netloc.split(":")[0]),url,\
                                     vulnerability,info,severity))
+    db.commit()
+
+    print("#extract emails")
+    db_cursor.execute("SELECT source_code FROM source_codes")
+    emails = set()
+    for source_code in db_cursor.fetchall():
+        emails = \
+            emails.union(http_extract.extract_emails(source_code[0],targets))
+    db_cursor.execute("SELECT header_dict FROM headers")
+    for header in db_cursor.fetchall():
+        emails = \
+            emails.union(http_extract.extract_emails(header[0],targets))
+    for email in emails:
+        db_cursor.execute("INSERT INTO emails(email_address) VALUES (%s)",\
+                            (email,))
     db.commit()
 
     print("#subdomain takeover")

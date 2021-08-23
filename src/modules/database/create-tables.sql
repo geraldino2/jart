@@ -94,9 +94,7 @@ CREATE TABLE IF NOT EXISTS directories (
 CREATE TABLE IF NOT EXISTS emails (
 	email_id INTEGER AUTO_INCREMENT,
 	email_address VARCHAR(320) NOT NULL, 
-    directory_id INTEGER,
     PRIMARY KEY (email_id), 
-    FOREIGN KEY (directory_id) REFERENCES directories(directory_id)
 )
 ---
 CREATE TABLE IF NOT EXISTS links (
