@@ -6,7 +6,9 @@ import concurrent.futures
 import time
 import ast
 import json
+import random
 from urllib import parse
+from html2image import Html2Image
 from requests.structures import CaseInsensitiveDict
 from dns import rcode,rdatatype
 from modules.parse import formatting,massdns,http_extract
@@ -532,11 +534,27 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
                             f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
     db.commit()
 
+    print("#screenshotting")
+    hti = Html2Image(custom_flags=["--virtual-time-budget=10000",\
+                                "--hide-scrollbars",\
+                                "--default-background-color=FFFFFFFF",\
+                                "--headless","--disable-gpu"],\
+                output_path="{}/screenshots".format(root_path))
+    db_cursor.execute("SELECT source_code,source_code_id FROM source_codes")
+    for result in db_cursor.fetchall():
+        sc_id = int(random.random()*10000000000)
+        hti.screenshot(html_str=result[0],\
+                        save_as="{}.png".format(sc_id))
+        db_cursor.execute("UPDATE source_codes SET screenshot_path = %s WHERE\
+                            source_code_id=%s",("{}/screenshots/{}.png".\
+                            format(root_path,sc_id),result[1]))
+    db.commit()
+
     print("#delete")
-    to_remove = ['altdns-out','alt-errors','alt-nxdomain-cname', \
-                'alt-subdomains','tobrute','t-errors','t-nxdomains', \
-                't-subdomains','amass-out','subfinder-out','subdomains', \
-                'errors','nxdomains','ips']
+    to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
+                "alt-subdomains","tobrute","t-errors","t-nxdomains", \
+                "t-subdomains","amass-out","subfinder-out","subdomains", \
+                "errors","nxdomains","ips"]
     for file in to_remove:
         try:
             os.remove(file)
