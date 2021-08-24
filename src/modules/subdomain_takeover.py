@@ -7,8 +7,9 @@ with open("modules/fingerprints.yaml","r") as fingerprints_file:
     fingerprints = yaml.load(fingerprints_file.read(), Loader=yaml.CLoader)
 
 class Subdomain_Takeover(object):
-    def __init__(self,dns_cnames=dict()):
+    def __init__(self,rresolver="1.1.1.1",dns_cnames=dict()):
         self.dns_cnames = dns_cnames
+        self.rresolver = rresolver
 
     def check_body_cname(self,host:str,text:str):
         for fingerprint in fingerprints:
@@ -37,13 +38,15 @@ class Subdomain_Takeover(object):
         return(False)
 
     def check_dns_rcode(self,host:str):
-        query_result = dns_query.process_query("1.1.1.1",host,rdatatype.A)
+        query_result = dns_query.process_query(self.rresolver,host,\
+                                                rdatatype.A)
         code = rcode.to_text(query_result[0])
         return(code)
 
     def check_mx(self,host:str):
         vulnerable = set()
-        mx_query_result = dns_query.process_query("1.1.1.1",host,rdatatype.MX)
+        mx_query_result = dns_query.process_query(self.rresolver,host,\
+                                                    rdatatype.MX)
         for mail_record in mx_query_result[1].split("\n"):
             if(len(mail_record.split(" ")) < 6):
                 continue
@@ -53,7 +56,7 @@ class Subdomain_Takeover(object):
             if(code == "NOERROR"):
                 continue
             elif(code in ["SERVFAIL","REFUSED"]):
-                ns_query_result = dns_query.process_query("1.1.1.1",\
+                ns_query_result = dns_query.process_query(self.rresolver,\
                                                     mail_server,rdatatype.MX)
                 for ns_record in ns_query_result[1].split("\n"):
                     ns = ns_record.split(" ")[4]

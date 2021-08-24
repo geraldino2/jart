@@ -80,6 +80,10 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
     targets = {domain}
     os.system("cls||clear")
 
+    print("#load resolvers")
+    with open(resolvers,"r") as resolvers_file:
+        resolver_list = resolvers_file.read().split("\n")[:-1]
+
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
                 -rL {resolvers} -timeout 90")
@@ -177,8 +181,9 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
         errors = dict()
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in subdomains_lines):
-                query_result = dns_query.process_query("1.1.1.1",subdomain,\
-                                                       rdatatype.A,\
+                query_result = dns_query.process_query(random.\
+                                                       choice(resolver_list),\
+                                                       subdomain,rdatatype.A,\
                                                        max_dns_retries)
                 code = rcode.to_text(query_result[0])
                 if(query_result[1]!="" and query_result[0] == 0):
@@ -255,7 +260,8 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
     for result in db_cursor.fetchall():
         dns_id,ips = result[0],[result[1]]
         while(not formatting.is_ipv4(ips[0])):
-            ip_query = dns_query.process_query("1.1.1.1",ips[0],rdatatype.A,\
+            ip_query = dns_query.process_query(random.choice(resolver_list),\
+                                                ips[0],rdatatype.A,\
                                                 max_dns_retries)
             if(ip_query[1] == ""):
                 db_cursor.execute("DELETE FROM cname_resolutions WHERE\
@@ -493,7 +499,7 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
     db.commit()
 
     print("#subdomain takeover")
-    services_takeover = Subdomain_Takeover(valid)
+    services_takeover = Subdomain_Takeover(random.choice(resolver_list),valid)
     for subdomain in valid.keys():
         source_code = ""
         db_cursor.execute("SELECT sc.source_code FROM directories AS dir \
@@ -515,7 +521,7 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
                             formatting.normalize_whitespaces( \
                             f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
     db.commit()
-    services_nx_takeover = Subdomain_Takeover(nx)
+    services_nx_takeover = Subdomain_Takeover(random.choice(resolver_list),nx)
     for subdomain in nx.keys():
         result = services_nx_takeover.check_cname(subdomain)
         if(result != None):
@@ -523,7 +529,7 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
                             formatting.normalize_whitespaces( \
                             f"[SUBDOMAIN TAKEOVER] NX {result}"))
     db.commit()
-    services_ns_takeover = Subdomain_Takeover()
+    services_ns_takeover = Subdomain_Takeover(random.choice(resolver_list))
     for subdomain in errors.keys():
         for ns in errors[subdomain][1]:
             ns = tldextract.extract(ns).registered_domain
