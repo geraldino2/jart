@@ -4,9 +4,10 @@ alt_wordlist: '/home/apolo2/SecLists/Discovery/DNS/bigger-alt.txt'
 brute_wordlist: '/home/apolo2/SecLists/Discovery/DNS/dns-The-Biggest.txt'
 domain: 'uber.com'
 resolvers: '/home/apolo2/.config/resolvers.txt'
+trusted_resolvers: '/home/apolo2/.config/trusted_resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: '111111password!!!!!!'
+db_pass: '777'
 scan_external_redirection: 0
 max_http_redirection: 7
 max_dns_retries: 3

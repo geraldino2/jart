@@ -66,12 +66,13 @@ def probe_http(hostname:str,port:int,subdomain_id:int,http_req_timeout:int,\
         #subdomain_id,port,tls,status,size,source_code,headers
     return(None)
 
-def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
-        alt_wordlist:str,db_credentials:tuple,scan_external_redirection:int,\
-        max_http_redirection:int,max_dns_retries:int,max_http_retries:int,\
-        http_req_timeout:int,http_rcv_timeout:int,max_http_size:int,\
-        nuclei_templates:str,max_http_rps:int,nuclei_bulksize:int,\
-        nuclei_concurrency:int,max_http_probe_threads:int):
+def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
+        brute_wordlist:str,alt_wordlist:str,db_credentials:tuple,\
+        scan_external_redirection:int,max_http_redirection:int,\
+        max_dns_retries:int,max_http_retries:int,http_req_timeout:int,\
+        http_rcv_timeout:int,max_http_size:int,nuclei_templates:str,\
+        max_http_rps:int,nuclei_bulksize:int,nuclei_concurrency:int,\
+        max_http_probe_threads:int):
 
     if(os.geteuid() != 0):
         print("nmap/masscan requires sudo.")
@@ -80,9 +81,9 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
     targets = {domain}
     os.system("cls||clear")
 
-    print("#load resolvers")
-    with open(resolvers,"r") as resolvers_file:
-        resolver_list = resolvers_file.read().split("\n")[:-1]
+    print("#load trusted resolvers")
+    with open(trusted_resolvers,"r") as trusted_resolvers_file:
+        trusted_resolver_list = trusted_resolvers_file.read().split("\n")[:-1]
 
     print("#subfinder")
     _ = run_command(f"subfinder -d {domain} -all -o subfinder-out\
@@ -181,10 +182,10 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
         errors = dict()
         for subdomain in list(ns_records[0].keys()):
             if(subdomain not in subdomains_lines):
-                query_result = dns_query.process_query(random.\
-                                                       choice(resolver_list),\
-                                                       subdomain,rdatatype.A,\
-                                                       max_dns_retries)
+                query_result = dns_query.process_query(random.choice(\
+                                                    trusted_resolver_list),\
+                                                    subdomain,rdatatype.A,\
+                                                    max_dns_retries)
                 code = rcode.to_text(query_result[0])
                 if(query_result[1]!="" and query_result[0] == 0):
                     answers = set()
@@ -260,9 +261,9 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
     for result in db_cursor.fetchall():
         dns_id,ips = result[0],[result[1]]
         while(not formatting.is_ipv4(ips[0])):
-            ip_query = dns_query.process_query(random.choice(resolver_list),\
-                                                ips[0],rdatatype.A,\
-                                                max_dns_retries)
+            ip_query = dns_query.process_query(random.choice(\
+                                            trusted_resolver_list),ips[0],\
+                                            rdatatype.A,max_dns_retries)
             if(ip_query[1] == ""):
                 db_cursor.execute("DELETE FROM cname_resolutions WHERE\
                                     dns_id=%s",(dns_id,))
@@ -498,47 +499,48 @@ def run(root_path:str,domain:str,resolvers:str,brute_wordlist:str,\
                             (email,))
     db.commit()
 
-    print("#subdomain takeover")
-    services_takeover = Subdomain_Takeover(random.choice(resolver_list),valid)
-    for subdomain in valid.keys():
-        source_code = ""
-        db_cursor.execute("SELECT sc.source_code FROM directories AS dir \
-                            INNER JOIN source_codes AS sc ON \
-                            sc.source_code_id = dir.source_code_id \
-                            WHERE path = '/' AND subdomain_id = (SELECT \
-                            subdomain_id FROM subdomains WHERE hostname = %s)\
-                            AND (port = 80 OR port = 443)",(subdomain,))
-        for code in db_cursor.fetchall():
-            source_code += code[0]
-        result = services_takeover.check_body_cname(subdomain,source_code)
-        if(result != None):
-            add_vulnerability(db_cursor,subdomain,\
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] SVC {result}"))
-        mx_result = services_takeover.check_mx(subdomain)
-        if(len(mx_result) > 0):
-            add_vulnerability(db_cursor,subdomain,\
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
-    db.commit()
-    services_nx_takeover = Subdomain_Takeover(random.choice(resolver_list),nx)
-    for subdomain in nx.keys():
-        result = services_nx_takeover.check_cname(subdomain)
-        if(result != None):
-            add_vulnerability(db_cursor,subdomain,
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] NX {result}"))
-    db.commit()
-    services_ns_takeover = Subdomain_Takeover(random.choice(resolver_list))
-    for subdomain in errors.keys():
-        for ns in errors[subdomain][1]:
-            ns = tldextract.extract(ns).registered_domain
-            result = services_ns_takeover.check_nxdomain(ns)
-            if(result):
-                add_vulnerability(db_cursor,subdomain,
-                            formatting.normalize_whitespaces( \
-                            f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
-    db.commit()
+    # TODO - new workflow
+    # print("#subdomain takeover")
+    # services_takeover = Subdomain_Takeover(random.choice(resolver_list),valid)
+    # for subdomain in valid.keys():
+    #     source_code = ""
+    #     db_cursor.execute("SELECT sc.source_code FROM directories AS dir \
+    #                         INNER JOIN source_codes AS sc ON \
+    #                         sc.source_code_id = dir.source_code_id \
+    #                         WHERE path = '/' AND subdomain_id = (SELECT \
+    #                         subdomain_id FROM subdomains WHERE hostname = %s)\
+    #                         AND (port = 80 OR port = 443)",(subdomain,))
+    #     for code in db_cursor.fetchall():
+    #         source_code += code[0]
+    #     result = services_takeover.check_body_cname(subdomain,source_code)
+    #     if(result != None):
+    #         add_vulnerability(db_cursor,subdomain,\
+    #                         formatting.normalize_whitespaces( \
+    #                         f"[SUBDOMAIN TAKEOVER] SVC {result}"))
+    #     mx_result = services_takeover.check_mx(subdomain)
+    #     if(len(mx_result) > 0):
+    #         add_vulnerability(db_cursor,subdomain,\
+    #                         formatting.normalize_whitespaces( \
+    #                         f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
+    # db.commit()
+    # services_nx_takeover = Subdomain_Takeover(random.choice(resolver_list),nx)
+    # for subdomain in nx.keys():
+    #     result = services_nx_takeover.check_cname(subdomain)
+    #     if(result != None):
+    #         add_vulnerability(db_cursor,subdomain,
+    #                         formatting.normalize_whitespaces( \
+    #                         f"[SUBDOMAIN TAKEOVER] NX {result}"))
+    # db.commit()
+    # services_ns_takeover = Subdomain_Takeover(random.choice(resolver_list))
+    # for subdomain in errors.keys():
+    #     for ns in errors[subdomain][1]:
+    #         ns = tldextract.extract(ns).registered_domain
+    #         result = services_ns_takeover.check_nxdomain(ns)
+    #         if(result):
+    #             add_vulnerability(db_cursor,subdomain,
+    #                         formatting.normalize_whitespaces( \
+    #                         f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
+    # db.commit()
 
     print("#screenshotting")
     hti = Html2Image(custom_flags=["--virtual-time-budget=10000",\
