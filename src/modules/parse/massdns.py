@@ -38,7 +38,7 @@ def load(lines:list) -> (dict,dict,set):
                     errors.add(subdomain)
     return(valid,nxdomain_cname,errors)
 
-def load_from_file(filename:str) -> (dict,set,set):
+def load_from_file(filename:str) -> (dict,dict,set):
     '''
     Input
         str

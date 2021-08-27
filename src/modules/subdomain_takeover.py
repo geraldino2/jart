@@ -42,28 +42,3 @@ class Subdomain_Takeover(object):
                                                 rdatatype.A)
         code = rcode.to_text(query_result[0])
         return(code)
-
-    def check_mx(self,host:str):
-        vulnerable = set()
-        mx_query_result = dns_query.process_query(self.rresolver,host,\
-                                                    rdatatype.MX)
-        for mail_record in mx_query_result[1].split("\n"):
-            if(len(mail_record.split(" ")) < 6):
-                continue
-            mail_server = mail_record.split(" ")[5]
-            mail_domain = tldextract.extract(mail_server).registered_domain
-            code = self.check_dns_rcode(mail_server)
-            if(code == "NOERROR"):
-                continue
-            elif(code in ["SERVFAIL","REFUSED"]):
-                ns_query_result = dns_query.process_query(self.rresolver,\
-                                                    mail_server,rdatatype.MX)
-                for ns_record in ns_query_result[1].split("\n"):
-                    ns = ns_record.split(" ")[4]
-                    ns_domain = tldextract.extract(ns).registered_domain
-                    if(self.check_nxdomain(ns_domain)):
-                        vulnerable.add(f"(NS NXDOMAIN) @{mail_server}")
-            elif(code == "NXDOMAIN"):
-                if(self.check_nxdomain(mail_domain)):
-                    vulnerable.add(f"(NXDOMAIN) @{mail_server}")
-        return(vulnerable)

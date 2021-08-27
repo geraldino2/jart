@@ -95,7 +95,7 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
 
     print("#massdns - resolve")
     _ = run_command(f"massdns -r {resolvers} -w massdns-resolve-out -o \
-                      Srmldni amass-out -s 20000")
+                      Srmldni amass-out -s 20000 --root")
     print("#create brute_wordlist")
     with open("tobrute","w") as saida:
         for parameter in open(brute_wordlist,"r"):
@@ -105,7 +105,7 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
 
     print("#massdns - brute")
     _ = run_command(f"massdns -r {resolvers} -w massdns-brute-out -o \
-        Srmldni tobrute -s 20000")
+        Srmldni tobrute -s 20000 --root")
     print("#join | sort | uniq")
     with open("massdns-resolve-out","r") as resolve_out, \
         open("massdns-brute-out","r") as brute_out, \
@@ -125,7 +125,7 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
 
     print("#massdns - brute alt")
     _ = run_command(f"massdns -r {resolvers} -w massdns-alt-out -o \
-        Srmldni altdns-out -s 200000")
+        Srmldni altdns-out -s 200000 --root")
     print("#join | sort | uniq")
     with open("massdns-alt-out","r") as alt_out, \
         open("subdomains","w") as valid_join, \
@@ -161,8 +161,8 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
 
 
     print("#massdns - ns")
-    _ = run_command(f"massdns -r /home/apolo2/.config/trusted-resolvers.txt \
-        -w massdns-ns-out -t NS -o Srmldni errors -s 20000")
+    _ = run_command(f"massdns -r {trusted_resolvers} -w massdns-ns-out -t NS\
+                        -o Srmldni errors -s 20000 --root")
 
     print("#parsing")
     with open("subdomains","a+") as subdomains_file, \
@@ -498,6 +498,98 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
         db_cursor.execute("INSERT INTO emails(email_address) VALUES (%s)",\
                             (email,))
     db.commit()
+
+    print("#dns ns,mx,txt,srv,aaaa,hinfo")
+    with open("{}/modules/database/select-up_subdomains.sql".format(\
+        root_path)) as queries_file:
+        select_query = "\n".join(queries_file.read().split("\n")[1:])
+    db_cursor.execute(select_query)
+    emails = set()
+    name_servers = []
+    mail_servers = []
+    text_records = []
+    srv_records = []
+    aaaa_records = []
+    hinfo_records = []
+    for result in db_cursor.fetchall():
+        # ----NS----
+        query_result = dns_query.process_query(random.choice(\
+                                                trusted_resolver_list),\
+                                                result[0],rdatatype.NS,\
+                                                max_dns_retries)
+        if(query_result[1]!="" and "NS" in query_result[1]):
+            for t_ns in [ns.split("\n")[0][:-1] for ns in query_result[1]\
+                            .split("IN NS ")[1:]]:
+                name_servers.append([t_ns,result[0]])
+        #SOA e-mails
+        if(query_result[2]!="" and query_result[2]!=[]):
+            email = query_result[2][0].to_text().split()[5][:-1]
+            email_domain = tldextract.extract(email).registered_domain
+            if(email_domain in targets):
+                emails.add("{}@{}".format(email.split("."+email_domain)\
+                                            [0],email_domain))
+        # ----MX----
+        query_result = dns_query.process_query(random.choice(\
+                                                trusted_resolver_list),\
+                                                result[0],rdatatype.MX,\
+                                                max_dns_retries)
+        if(query_result[1]!="" and "MX" in query_result[1]):
+            for t_mx in [mx.split("\n")[0][:-1] for mx in query_result[1]\
+                            .split("IN MX ")[1:]]:
+                mail_servers.append([t_mx.split(" ")[1],result[0]])
+        # ----TXT----
+        query_result = dns_query.process_query(random.choice(\
+                                                trusted_resolver_list),\
+                                                result[0],rdatatype.TXT,\
+                                                max_dns_retries)
+        if(query_result[1]!="" and "TXT" in query_result[1]):
+            for t_txt in [txt.split("\n")[0][:-1] for txt in query_result[1]\
+                            .split("IN TXT ")[1:]]:
+                text_records.append([t_txt,result[0]])
+        # ----SRV----
+        query_result = dns_query.process_query(random.choice(\
+                                                trusted_resolver_list),\
+                                                result[0],rdatatype.SRV,\
+                                                max_dns_retries)
+        print(query_result)
+        if(query_result[1]!="" and "TXT" in query_result[1]):
+            for t_srv in [txt.split("\n")[0][:-1] for srv in query_result[1]\
+                            .split("IN SRV ")[1:]]:
+                print(t_srv)
+                srv_records.append([t_srv,result[0]])
+        # ----AAAA----
+        query_result = dns_query.process_query(random.choice(\
+                                                trusted_resolver_list),\
+                                                result[0],rdatatype.AAAA,\
+                                                max_dns_retries)
+        if(query_result[1]!="" and "AAAA" in query_result[1]):
+            for t_aaaa in [aaaa.split("\n")[0][:-1] for aaaa in \
+                            query_result[1].split("IN AAAA ")[1:]]:
+                print(t_aaaa)
+                aaaa_records.append([t_aaaa,result[0]])
+        # ----HINFO----
+        query_result = dns_query.process_query(random.choice(\
+                                                trusted_resolver_list),\
+                                                result[0],rdatatype.HINFO,\
+                                                max_dns_retries)
+        print(query_result)
+        if(query_result[1]!="" and "HINFO" in query_result[1]):
+            for t_hinfo in [hinfo.split("\n")[0][:-1] for hinfo in \
+                            query_result[1].split("IN HINFO ")[1:]]:
+                print(t_hinfo)
+                hinfo_records.append([t_hinfo,result[0]])
+    print(emails)
+    print(name_servers)
+    print(mail_servers)
+    print(text_records)
+    print(srv_records)
+    print(aaaa_records)
+    print(hinfo_records)
+
+    #TODO
+    #add email if not exists
+    #add records (for ns, check existence)
+    #create dns link
 
     # TODO - new workflow
     # print("#subdomain takeover")
