@@ -72,7 +72,7 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
         max_dns_retries:int,max_http_retries:int,http_req_timeout:int,\
         http_rcv_timeout:int,max_http_size:int,nuclei_templates:str,\
         max_http_rps:int,nuclei_bulksize:int,nuclei_concurrency:int,\
-        max_http_probe_threads:int):
+        max_http_probe_threads:int,max_dns_query_threads:int):
 
     if(os.geteuid() != 0):
         print("nmap/masscan requires sudo.")
@@ -500,91 +500,71 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
     db.commit()
 
     print("#dns ns,mx,txt,srv,aaaa,hinfo")
+    def dns_parsed_query(hostname,query_question) -> list:
+        rlist = [] 
+        question_str = rdatatype.to_text(query_question)
+        query_result = dns_query.process_query(random.choice(\
+                                                    trusted_resolver_list),\
+                                                    hostname,query_question,\
+                                                    max_dns_retries)
+        if(question_str in query_result[1]):
+            for rec in [trec.split("\n")[0][:-1] for trec in query_result[1]\
+                            .split(f"IN {question_str} ")[1:]]:
+                if(question_str == "MX"):
+                    rlist.append([hostname,question_str,rec.split(" ")[1],\
+                                    query_result[2],rcode.to_text(\
+                                    query_result[0])])
+                else:
+                    rlist.append([hostname,question_str,rec,query_result[2],\
+                                    rcode.to_text(query_result[0])])
+        else:
+            rlist.append([None,None,None,query_result[2]])
+        return(rlist)
+
     with open("{}/modules/database/select-up_subdomains.sql".format(\
         root_path)) as queries_file:
         select_query = "\n".join(queries_file.read().split("\n")[1:])
+
     db_cursor.execute(select_query)
-    emails = set()
-    name_servers = []
-    mail_servers = []
-    text_records = []
-    srv_records = []
-    aaaa_records = []
-    hinfo_records = []
-    for result in db_cursor.fetchall():
-        # ----NS----
-        query_result = dns_query.process_query(random.choice(\
-                                                trusted_resolver_list),\
-                                                result[0],rdatatype.NS,\
-                                                max_dns_retries)
-        if(query_result[1]!="" and "NS" in query_result[1]):
-            for t_ns in [ns.split("\n")[0][:-1] for ns in query_result[1]\
-                            .split("IN NS ")[1:]]:
-                name_servers.append([t_ns,result[0]])
-        #SOA e-mails
-        if(query_result[2]!="" and query_result[2]!=[]):
-            email = query_result[2][0].to_text().split()[5][:-1]
-            email_domain = tldextract.extract(email).registered_domain
-            if(email_domain in targets):
-                emails.add("{}@{}".format(email.split("."+email_domain)\
-                                            [0],email_domain))
-        # ----MX----
-        query_result = dns_query.process_query(random.choice(\
-                                                trusted_resolver_list),\
-                                                result[0],rdatatype.MX,\
-                                                max_dns_retries)
-        if(query_result[1]!="" and "MX" in query_result[1]):
-            for t_mx in [mx.split("\n")[0][:-1] for mx in query_result[1]\
-                            .split("IN MX ")[1:]]:
-                mail_servers.append([t_mx.split(" ")[1],result[0]])
-        # ----TXT----
-        query_result = dns_query.process_query(random.choice(\
-                                                trusted_resolver_list),\
-                                                result[0],rdatatype.TXT,\
-                                                max_dns_retries)
-        if(query_result[1]!="" and "TXT" in query_result[1]):
-            for t_txt in [txt.split("\n")[0][:-1] for txt in query_result[1]\
-                            .split("IN TXT ")[1:]]:
-                text_records.append([t_txt,result[0]])
-        # ----SRV----
-        query_result = dns_query.process_query(random.choice(\
-                                                trusted_resolver_list),\
-                                                result[0],rdatatype.SRV,\
-                                                max_dns_retries)
-        print(query_result)
-        if(query_result[1]!="" and "TXT" in query_result[1]):
-            for t_srv in [txt.split("\n")[0][:-1] for srv in query_result[1]\
-                            .split("IN SRV ")[1:]]:
-                print(t_srv)
-                srv_records.append([t_srv,result[0]])
-        # ----AAAA----
-        query_result = dns_query.process_query(random.choice(\
-                                                trusted_resolver_list),\
-                                                result[0],rdatatype.AAAA,\
-                                                max_dns_retries)
-        if(query_result[1]!="" and "AAAA" in query_result[1]):
-            for t_aaaa in [aaaa.split("\n")[0][:-1] for aaaa in \
-                            query_result[1].split("IN AAAA ")[1:]]:
-                print(t_aaaa)
-                aaaa_records.append([t_aaaa,result[0]])
-        # ----HINFO----
-        query_result = dns_query.process_query(random.choice(\
-                                                trusted_resolver_list),\
-                                                result[0],rdatatype.HINFO,\
-                                                max_dns_retries)
-        print(query_result)
-        if(query_result[1]!="" and "HINFO" in query_result[1]):
-            for t_hinfo in [hinfo.split("\n")[0][:-1] for hinfo in \
-                            query_result[1].split("IN HINFO ")[1:]]:
-                print(t_hinfo)
-                hinfo_records.append([t_hinfo,result[0]])
-    print(emails)
-    print(name_servers)
-    print(mail_servers)
-    print(text_records)
-    print(srv_records)
-    print(aaaa_records)
-    print(hinfo_records)
+    records = []
+
+    def append_dns_record(hostname,query_questions) -> None:
+        for question in query_questions:
+            records.append(dns_parsed_query(hostname,question))
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=\
+                                        max_dns_query_threads) as executor:
+        threads = {executor.submit(append_dns_record,result[0],[rdatatype.NS,\
+                                    rdatatype.MX,rdatatype.TXT,rdatatype.SRV,\
+                                    rdatatype.AAAA,rdatatype.HINFO]): 
+                    result for result in db_cursor.fetchall()}
+
+    for record in records:
+        for sr in record:
+            if(sr[0] != None):
+                db_cursor.execute("INSERT INTO dns_records(record,type,rcode)\
+                                    SELECT %s AS record, %s AS type, %s AS \
+                                    rcode WHERE NOT EXISTS ( SELECT 1 FROM\
+                                    dns_records WHERE record=%s AND type=%s )\
+                                    ",(sr[2],sr[1],sr[4],sr[2],sr[1]))
+                db_cursor.execute("SELECT subdomain_id FROM subdomains WHERE\
+                                    hostname=%s",(sr[0],))
+                subdomain_id = db_cursor.fetchall()[0]
+                db_cursor.execute("INSERT INTO dns_link(subdomain_id,dns_id)\
+                                    VALUES (%s, (SELECT dns_id FROM \
+                                    dns_records WHERE record=%s))",\
+                                    (subdomain_id,sr[2]))
+            if(sr[3] != "" and sr[3] != []):
+                email = sr[3][0].to_text().split()[5][:-1]
+                email_domain = tldextract.extract(email).registered_domain
+                if(email_domain in targets):
+                    email = "{}@{}".format(email.split("."+email_domain)[0],\
+                                            email_domain)
+                    db_cursor.execute("INSERT INTO emails(email_address) \
+                                        SELECT %s AS email_address WHERE NOT\
+                                        EXISTS ( SELECT 1 FROM emails WHERE\
+                                        email_address=%s )",(email,email))
+    db.commit()
 
     #TODO
     #add email if not exists

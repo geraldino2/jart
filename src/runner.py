@@ -8,11 +8,13 @@ def load_config():
     alt_wordlist,db_host,db_user,db_pass,scan_external_redirection,\
     max_http_redirection,max_dns_retries,max_http_retries,http_req_timeout,\
     http_rcv_timeout,max_http_size,nuclei_templates,max_http_rps,\
-    nuclei_bulksize,nuclei_concurrency,max_http_probe_threads
+    nuclei_bulksize,nuclei_concurrency,max_http_probe_threads,\
+    max_dns_query_threads
 
     with open("config.yaml","r") as config_file:
         config = yaml.load(config_file.read(), Loader=yaml.CLoader)
 
+    root_path = config["root_path"]
     domain = config["domain"]
     resolvers = config["resolvers"]
     trusted_resolvers = config["trusted_resolvers"]
@@ -33,7 +35,7 @@ def load_config():
     nuclei_bulksize = config["nuclei_bulksize"]
     nuclei_concurrency = config["nuclei_concurrency"]
     max_http_probe_threads = config["max_http_probe_threads"]
-    root_path = config["root_path"]
+    max_dns_query_threads = config["max_dns_query_threads"]
 
 load_config()
 main.run(root_path,domain,resolvers,trusted_resolvers,brute_wordlist,\
@@ -41,4 +43,4 @@ main.run(root_path,domain,resolvers,trusted_resolvers,brute_wordlist,\
         max_http_redirection,max_dns_retries,max_http_retries,\
         http_req_timeout,http_rcv_timeout,max_http_size,nuclei_templates,\
         max_http_rps,nuclei_bulksize,nuclei_concurrency,\
-        max_http_probe_threads)
+        max_http_probe_threads,max_dns_query_threads)

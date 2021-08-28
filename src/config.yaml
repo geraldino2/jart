@@ -7,7 +7,7 @@ resolvers: '/home/apolo2/.config/resolvers.txt'
 trusted_resolvers: '/home/apolo2/.config/trusted_resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: '777'
+db_pass: ':)'
 scan_external_redirection: 0
 max_http_redirection: 7
 max_dns_retries: 3
@@ -20,3 +20,4 @@ max_http_rps: 1200
 nuclei_bulksize: 100
 nuclei_concurrency: 30
 max_http_probe_threads: 2048
+max_dns_query_threads: 2048
