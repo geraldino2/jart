@@ -12,7 +12,7 @@ def load_config():
     max_dns_query_threads,dir_fetch_target_specific_wordlists,\
     dir_target_specific_path_depth,dir_target_specific_excluded_ext,\
     dir_wordlist_path,dir_fuzz_threads,calibration_strs,dir_fuzz_retries,\
-    ferox_concurrency
+    ferox_concurrency,http_proxy,https_proxy
     with open("config.yaml","r") as config_file:
         config = yaml.load(config_file.read(), Loader=yaml.CLoader)
 
@@ -45,6 +45,8 @@ def load_config():
                                         "dir_target_specific_excluded_ext"]
     dir_wordlist_path = config["dir_wordlist_path"]
     ferox_concurrency = config["ferox_concurrency"]
+    http_proxy = config["http_proxy"]
+    https_proxy = config["https_proxy"]
 
 load_config()
 main.run(root_path,domain,resolvers,trusted_resolvers,brute_wordlist,\
@@ -54,4 +56,5 @@ main.run(root_path,domain,resolvers,trusted_resolvers,brute_wordlist,\
         max_http_rps,nuclei_bulksize,nuclei_concurrency,\
         max_http_probe_threads,max_dns_query_threads,\
         dir_fetch_target_specific_wordlists,dir_target_specific_path_depth,\
-        dir_target_specific_excluded_ext,dir_wordlist_path,ferox_concurrency)
+        dir_target_specific_excluded_ext,dir_wordlist_path,ferox_concurrency,\
+        http_proxy,https_proxy)

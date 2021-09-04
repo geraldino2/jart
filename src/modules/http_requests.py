@@ -8,14 +8,15 @@ ua = "Mozilla/5.0 (X11; Linux x86_64; rv:90.0) Gecko/20100101 Firefox/90.0"
 ua_accept_headers = {"User-Agent": ua, "Accept": "*/*"}
 
 def probe(hostname:str,port:int,path:str="/",req_timeout:int=6,\
-            rcv_timeout:int=12,max_size:int=int(16e6),retries:int=3)\
-            -> (int,str,dict,bool):
+            rcv_timeout:int=12,max_size:int=int(16e6),retries:int=3,\
+            proxies:dict) -> (int,str,dict,bool):
 
     http_response = https_response = (-1,"","",False)
     protocol_link = {"http":http_response,"https":https_response}
 
     for protocol in protocol_link.keys():
-        req,response = request(f"{protocol}://{hostname}:{port}{path}")
+        req,response = request(f"{protocol}://{hostname}:{port}{path}",\
+                                proxies=proxies)
         if(req == -1):
             continue
         protocol_link[protocol] = (req.status_code,response,\
@@ -26,12 +27,12 @@ def probe(hostname:str,port:int,path:str="/",req_timeout:int=6,\
     return(protocol_link["http"])
 
 def request(url:str,req_timeout:int=6,rcv_timeout:int=12,\
-            max_size:int=int(16e6),retries:int=3):
+            max_size:int=int(16e6),retries:int=3,proxies=dict):
     for _ in range(retries):
         try:
             req = requests.get(url,allow_redirects=False,verify=False, \
                                stream=True,headers=ua_accept_headers,\
-                               timeout=req_timeout)
+                               timeout=req_timeout,proxies=proxies)
         except:
             continue
 

@@ -7,7 +7,7 @@ resolvers: '/home/apolo2/.config/resolvers.txt'
 trusted_resolvers: '/home/apolo2/.config/trusted_resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: '?'
+db_pass: '9?'
 scan_external_redirection: 0
 max_http_redirection: 7
 max_dns_retries: 3
@@ -26,3 +26,5 @@ dir_target_specific_path_depth: 1
 dir_target_specific_excluded_ext: 'ttf,woff,svg,png,jpg,ico,gif,html'
 dir_wordlist_path: '/home/apolo2/SecLists/Discovery/Web-Content/medium-wl'
 ferox_concurrency: 2048
+http_proxy: "http://127.0.0.1:8080"
+https_proxy: "http://127.0.0.1:8080"

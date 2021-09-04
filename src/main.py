@@ -56,7 +56,7 @@ def probe_http(hostname:str,port:int,subdomain_id:int,http_req_timeout:int,\
                 http_rcv_timeout:int,max_http_size:int,max_http_retries:int):
     response = http_requests.probe(hostname,port,"/",http_req_timeout,\
                                     http_rcv_timeout,max_http_size,\
-                                    max_http_retries)
+                                    max_http_retries,proxies)
     if(response[0] != -1):
         return(subdomain_id,port,response[3],response[0],len(response[1]), \
                 response[1],str(response[2]))
@@ -72,7 +72,8 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
         max_http_probe_threads:int,max_dns_query_threads:int,\
         dir_fetch_target_specific_wordlists:bool,\
         dir_target_specific_path_depth:int,dir_target_specific_excluded_ext:\
-        str,dir_wordlist_path:str,ferox_concurrency:int):
+        str,dir_wordlist_path:str,ferox_concurrency:int,http_proxy:str,\
+        https_proxy:str):
 
     if(os.geteuid() != 0):
         print("nmap/masscan requires sudo.")
@@ -83,6 +84,8 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
         for target in targets:
             targets_file.write(target+"\n")
     os.system("cls||clear")
+
+    proxies = {"http":http_proxy,"https":https_proxy}
 
     print("#load trusted resolvers")
     with open(trusted_resolvers,"r") as trusted_resolvers_file:
@@ -416,7 +419,7 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
                 req,response = http_requests.request(redirection,\
                                     http_req_timeout,http_rcv_timeout,\
                                     max_http_size,\
-                                    max_http_retries)
+                                    max_http_retries,proxies)
                 if(req == -1):
                     continue
                 db_cursor.execute("INSERT INTO source_codes(source_code) \
