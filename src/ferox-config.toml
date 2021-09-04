@@ -1,0 +1,7 @@
+extract_links = true
+insecure = true
+no_recursion = true
+save_state = false
+threads = 7
+time_limit = "2h"
+proxy = "http://127.0.0.1:8080"

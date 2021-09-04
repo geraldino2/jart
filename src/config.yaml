@@ -7,12 +7,12 @@ resolvers: '/home/apolo2/.config/resolvers.txt'
 trusted_resolvers: '/home/apolo2/.config/trusted_resolvers.txt'
 db_host: 'localhost'
 db_user: 'root'
-db_pass: ':)'
+db_pass: '?'
 scan_external_redirection: 0
 max_http_redirection: 7
 max_dns_retries: 3
 max_http_retries: 3
-http_req_timeout: 6
+http_req_timeout: 7
 http_rcv_timeout: 12
 max_http_size: 16000000
 nuclei_templates: '/home/apolo2/nuclei-templates'
@@ -21,3 +21,8 @@ nuclei_bulksize: 100
 nuclei_concurrency: 30
 max_http_probe_threads: 2048
 max_dns_query_threads: 2048
+dir_fetch_target_specific_wordlists: True
+dir_target_specific_path_depth: 1
+dir_target_specific_excluded_ext: 'ttf,woff,svg,png,jpg,ico,gif,html'
+dir_wordlist_path: '/home/apolo2/SecLists/Discovery/Web-Content/medium-wl'
+ferox_concurrency: 2048

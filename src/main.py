@@ -3,7 +3,6 @@ import os
 import sys
 import tldextract
 import concurrent.futures
-import time
 import ast
 import json
 import random
@@ -16,13 +15,11 @@ from modules.database import db_conn
 from modules import dns_query,http_requests
 from modules.subdomain_takeover import Subdomain_Takeover
 
-def run_command(cmd:str) -> (bytes,bytes,bytes):
-    start_time = time.time()
+def run_command(cmd:str) -> (bytes,bytes):
     cmd = [arg for arg in cmd.split(" ") if arg != ""]
     process = subprocess.Popen(cmd,stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
     stdout,stderr=process.communicate()[0],process.communicate()[1]
-    print(time.time() - start_time)
     return(stdout,stderr)
 
 
@@ -72,13 +69,19 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
         max_dns_retries:int,max_http_retries:int,http_req_timeout:int,\
         http_rcv_timeout:int,max_http_size:int,nuclei_templates:str,\
         max_http_rps:int,nuclei_bulksize:int,nuclei_concurrency:int,\
-        max_http_probe_threads:int,max_dns_query_threads:int):
+        max_http_probe_threads:int,max_dns_query_threads:int,\
+        dir_fetch_target_specific_wordlists:bool,\
+        dir_target_specific_path_depth:int,dir_target_specific_excluded_ext:\
+        str,dir_wordlist_path:str,ferox_concurrency:int):
 
     if(os.geteuid() != 0):
         print("nmap/masscan requires sudo.")
         sys.exit(1)
 
     targets = {domain}
+    with open("targets","w") as targets_file:
+        for target in targets:
+            targets_file.write(target+"\n")
     os.system("cls||clear")
 
     print("#load trusted resolvers")
@@ -566,53 +569,91 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
                                         email_address=%s )",(email,email))
     db.commit()
 
-    #TODO
-    #add email if not exists
-    #add records (for ns, check existence)
-    #create dns link
+    print("#subdomain takeover")
+    services_takeover = Subdomain_Takeover(random.choice(resolver_list),valid)
+    for subdomain in valid.keys():
+        source_code = ""
+        db_cursor.execute("SELECT sc.source_code FROM directories AS dir \
+                            INNER JOIN source_codes AS sc ON \
+                            sc.source_code_id = dir.source_code_id \
+                            WHERE path = '/' AND subdomain_id = (SELECT \
+                            subdomain_id FROM subdomains WHERE hostname = %s)\
+                            AND (port = 80 OR port = 443)",(subdomain,))
+        for code in db_cursor.fetchall():
+            source_code += code[0]
+        result = services_takeover.check_body_cname(subdomain,source_code)
+        if(result != None):
+            add_vulnerability(db_cursor,subdomain,\
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] SVC {result}"))
+        mx_result = services_takeover.check_mx(subdomain)
+        if(len(mx_result) > 0):
+            add_vulnerability(db_cursor,subdomain,\
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
+    db.commit()
+    services_nx_takeover = Subdomain_Takeover(random.choice(resolver_list),nx)
+    for subdomain in nx.keys():
+        result = services_nx_takeover.check_cname(subdomain)
+        if(result != None):
+            add_vulnerability(db_cursor,subdomain,
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] NX {result}"))
+    db.commit()
+    services_ns_takeover = Subdomain_Takeover(random.choice(resolver_list))
+    for subdomain in errors.keys():
+        for ns in errors[subdomain][1]:
+            ns = tldextract.extract(ns).registered_domain
+            result = services_ns_takeover.check_nxdomain(ns)
+            if(result):
+                add_vulnerability(db_cursor,subdomain,
+                            formatting.normalize_whitespaces( \
+                            f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
+    db.commit()
 
-    # TODO - new workflow
-    # print("#subdomain takeover")
-    # services_takeover = Subdomain_Takeover(random.choice(resolver_list),valid)
-    # for subdomain in valid.keys():
-    #     source_code = ""
-    #     db_cursor.execute("SELECT sc.source_code FROM directories AS dir \
-    #                         INNER JOIN source_codes AS sc ON \
-    #                         sc.source_code_id = dir.source_code_id \
-    #                         WHERE path = '/' AND subdomain_id = (SELECT \
-    #                         subdomain_id FROM subdomains WHERE hostname = %s)\
-    #                         AND (port = 80 OR port = 443)",(subdomain,))
-    #     for code in db_cursor.fetchall():
-    #         source_code += code[0]
-    #     result = services_takeover.check_body_cname(subdomain,source_code)
-    #     if(result != None):
-    #         add_vulnerability(db_cursor,subdomain,\
-    #                         formatting.normalize_whitespaces( \
-    #                         f"[SUBDOMAIN TAKEOVER] SVC {result}"))
-    #     mx_result = services_takeover.check_mx(subdomain)
-    #     if(len(mx_result) > 0):
-    #         add_vulnerability(db_cursor,subdomain,\
-    #                         formatting.normalize_whitespaces( \
-    #                         f"[SUBDOMAIN TAKEOVER] MX {mx_result}"))
-    # db.commit()
-    # services_nx_takeover = Subdomain_Takeover(random.choice(resolver_list),nx)
-    # for subdomain in nx.keys():
-    #     result = services_nx_takeover.check_cname(subdomain)
-    #     if(result != None):
-    #         add_vulnerability(db_cursor,subdomain,
-    #                         formatting.normalize_whitespaces( \
-    #                         f"[SUBDOMAIN TAKEOVER] NX {result}"))
-    # db.commit()
-    # services_ns_takeover = Subdomain_Takeover(random.choice(resolver_list))
-    # for subdomain in errors.keys():
-    #     for ns in errors[subdomain][1]:
-    #         ns = tldextract.extract(ns).registered_domain
-    #         result = services_ns_takeover.check_nxdomain(ns)
-    #         if(result):
-    #             add_vulnerability(db_cursor,subdomain,
-    #                         formatting.normalize_whitespaces( \
-    #                         f"[SUBDOMAIN TAKEOVER] NX NS {result}"))
-    # db.commit()
+    print("#generate target_specific_wordlist")
+    if(dir_fetch_target_specific_wordlists):
+        p1 = subprocess.Popen(["cat", "targets"],stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(["getallurls","-subs","-o","waybackurls"],\
+                                stdin=p1.stdout,stdout=subprocess.PIPE)
+        p2.communicate()
+        exts = dir_target_specific_excluded_ext.split(",")
+        paths = set()
+        with open("waybackurls","r") as wayback_urls_file:
+            for url in wayback_urls_file.read().split("\n"):
+                depth = 0
+                for urlpath in url.split("://")[1:]:
+                    if(depth==dir_target_specific_path_depth):
+                        depth = 0
+                    for path in urlpath.split("?")[0].split("/")[1:]:
+                        skip = False
+                        for ext in exts:
+                            if(path[-1*len(ext)-1:] == f".{ext}"):
+                                skip = True
+                                break
+                        if(skip):
+                            continue
+                        paths.add(path)
+                        depth+=1
+                        if(depth==dir_target_specific_path_depth):
+                            break
+
+    print("#join wordlists")
+    with open(dir_wordlist_path) as wl_file:
+        for path in wl_file.read().split("\n"):
+            paths.add(path)
+    with open("dir_wordlist","w") as wl_file:
+        for path in paths:
+            wl_file.write(path+"\n")
+    print("#dir fuzzing")
+    p1 = subprocess.Popen(["cat", "urls"],stdout=subprocess.PIPE)
+    with subprocess.Popen(["feroxbuster","--stdin","-w","dir_wordlist",\
+                            "--parallel",str(ferox_concurrency)],\
+                            stdin=p1.stdout,stdout=subprocess.PIPE,\
+                            bufsize=1,universal_newlines=True) as p2:
+        for line in p2.stdout:
+            if(line!="\n"):
+                print(line[:-1])
 
     print("#screenshotting")
     hti = Html2Image(custom_flags=["--virtual-time-budget=10000",\
@@ -633,8 +674,7 @@ def run(root_path:str,domain:str,resolvers:str,trusted_resolvers:str,\
     print("#delete")
     to_remove = ["altdns-out","alt-errors","alt-nxdomain-cname", \
                 "alt-subdomains","tobrute","t-errors","t-nxdomains", \
-                "t-subdomains","amass-out","subfinder-out","subdomains", \
-                "errors","nxdomains","ips"]
+                "t-subdomains","amass-out","subfinder-out","ips"]
     for file in to_remove:
         try:
             os.remove(file)
