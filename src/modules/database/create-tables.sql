@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS dns_records (
-	dns_id INTEGER AUTO_INCREMENT,
-	record VARCHAR(255) NOT NULL,
+    dns_id INTEGER AUTO_INCREMENT,
+    record VARCHAR(255) NOT NULL,
     type VARCHAR(8),
     rcode VARCHAR(8),
     PRIMARY KEY (dns_id), 
@@ -8,32 +8,32 @@ CREATE TABLE IF NOT EXISTS dns_records (
 )
 ---
 CREATE TABLE IF NOT EXISTS subdomains (
-	subdomain_id INTEGER AUTO_INCREMENT,
-	hostname VARCHAR(255) NOT NULL,
-	datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (subdomain_id)
-	)
+    subdomain_id INTEGER AUTO_INCREMENT,
+    hostname VARCHAR(255) NOT NULL,
+    datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (subdomain_id)
+)
 ---
 CREATE TABLE IF NOT EXISTS dns_link (
-	record_id INTEGER AUTO_INCREMENT,
-	subdomain_id INTEGER,
-	dns_id INTEGER,
-	PRIMARY KEY(record_id),
+    record_id INTEGER AUTO_INCREMENT,
+    subdomain_id INTEGER,
+    dns_id INTEGER,
+    PRIMARY KEY(record_id),
     FOREIGN KEY(subdomain_id) REFERENCES subdomains(subdomain_id),
     FOREIGN KEY (dns_id) REFERENCES dns_records(dns_id)
 )
 ---
 CREATE TABLE IF NOT EXISTS dns_link (
-	record_id INTEGER AUTO_INCREMENT,
-	subdomain_id INTEGER,
-	dns_id INTEGER,
-	PRIMARY KEY(record_id),
+    record_id INTEGER AUTO_INCREMENT,
+    subdomain_id INTEGER,
+    dns_id INTEGER,
+    PRIMARY KEY(record_id),
     FOREIGN KEY(subdomain_id) REFERENCES subdomains(subdomain_id),
     FOREIGN KEY (dns_id) REFERENCES dns_records(dns_id)
 )
 ---
 CREATE TABLE IF NOT EXISTS cname_resolutions (
-	resolution_id INTEGER AUTO_INCREMENT,
+    resolution_id INTEGER AUTO_INCREMENT,
     dns_id INTEGER,
     record VARCHAR(255),
     PRIMARY KEY (resolution_id),
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS cname_resolutions (
 )
 ---
 CREATE TABLE IF NOT EXISTS services (
-	dns_id INTEGER,
+    dns_id INTEGER,
     port INTEGER,
     state VARCHAR(14),
     service VARCHAR(32),
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS source_codes (
 )
 ---
 CREATE TABLE IF NOT EXISTS headers (
-	header_id INTEGER 
+    header_id INTEGER 
     AUTO_INCREMENT, header_dict MEDIUMTEXT NOT NULL, 
     PRIMARY KEY (header_id)
 )
@@ -74,11 +74,11 @@ CREATE TABLE IF NOT EXISTS vulnerabilities (
     FOREIGN KEY (subdomain_id) REFERENCES subdomains(subdomain_id)
 )
 ---
-CREATE TABLE IF NOT EXISTS directories (
-	directory_id INTEGER AUTO_INCREMENT,
-	subdomain_id INTEGER NOT NULL,
-	port INTEGER NOT NULL,
-	tls TINYINT NOT NULL, 
+    CREATE TABLE IF NOT EXISTS directories (
+    directory_id INTEGER AUTO_INCREMENT,
+    subdomain_id INTEGER NOT NULL,
+    port INTEGER NOT NULL,
+    tls TINYINT NOT NULL, 
     path VARCHAR(2083) NOT NULL,
     status_code INTEGER, 
     size INTEGER,
@@ -92,13 +92,13 @@ CREATE TABLE IF NOT EXISTS directories (
 )
 ---
 CREATE TABLE IF NOT EXISTS emails (
-	email_id INTEGER AUTO_INCREMENT,
-	email_address VARCHAR(320) NOT NULL, 
-    PRIMARY KEY (email_id), 
+    email_id INTEGER AUTO_INCREMENT,
+    email_address VARCHAR(320) NOT NULL, 
+    PRIMARY KEY (email_id)
 )
 ---
 CREATE TABLE IF NOT EXISTS links (
-	link_id INTEGER AUTO_INCREMENT,
+    link_id INTEGER AUTO_INCREMENT,
     path VARCHAR(2083) NOT NULL, 
     directory_id INTEGER,
     type VARCHAR(8), 
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS links (
 )
 ---
 CREATE TABLE IF NOT EXISTS targets (
-	target_id INTEGER AUTO_INCREMENT, 
-	hostname VARCHAR(255) NOT NULL, 
+    target_id INTEGER AUTO_INCREMENT, 
+    hostname VARCHAR(255) NOT NULL, 
     PRIMARY KEY(target_id)
 )

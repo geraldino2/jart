@@ -1,7 +1,12 @@
 import pymysql
 
 class DB_Connection:
-    def __init__(self,db_host,db_user,db_password):
+    def __init__(
+            self, 
+            db_host, 
+            db_user, 
+            db_password
+        ) -> None:
         self.db_host = db_host
         self.db_user = db_user
         self.db_password = db_password
