@@ -240,13 +240,6 @@
   service: simplebooklet
 - 
   cname: 
-    - .gr8.com
-  text: 
-    - "With GetResponse It looks like you’re lost...ing Pages, lead generation has never been easier"
-  nxdomain: false
-  service: getresponse
-- 
-  cname: 
     - vendecommerce.com
   text: 
     - "Looks like you've traveled too far into cyberspace"
@@ -594,3 +587,21 @@
     - "You may have mistyped the address or the page may have moved"
   nxdomain: false
   service: thinkific
+-
+  cname:
+    - cname.announcekit.app
+  text:
+    - "Error 404 - AnnounceKit"
+  nxdomain: false
+  service: announcekit
+-
+  cname:
+    - gr8.com
+    - subscribemenow.com
+    - getresponsepages.com
+  text:
+    - "Cette landing page n'est plus disponible"
+    - "Vous voulez créer des landing pages qui attireront"
+    - "With GetResponse It looks like you’re lost...ing Pages, lead generation has never been easier"
+  nxdomain: false
+  service: getresponse
