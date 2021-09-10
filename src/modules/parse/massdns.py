@@ -1,16 +1,12 @@
-def load(lines: list) -> (dict, dict, set):
-    '''
-    Input
-        list
-            List of lines
-    Output
-        dict
-            {subdomain: (code, {IPs})}
-        dict
-            NXDOMAIN with CNAME {subdomain: (code, {IPs})}
-        set
-            SERVFAIL/REFUSED subdomains
-    '''
+def load(
+        lines: list
+    ) -> (dict, dict, set):
+    """
+    Read massdns lines and separate results into valid, NX and errors.
+
+    :param lines: massdns output lines
+    :returns: subdomains that are valid/nx, as dicts and errors, as set
+    """
     valid = dict()
     nxdomain_cname = dict()
     errors = set()
@@ -37,19 +33,3 @@ def load(lines: list) -> (dict, dict, set):
                 elif(code in ["SERVFAIL", "REFUSED"]):
                     errors.add(subdomain)
     return(valid, nxdomain_cname, errors)
-
-def load_from_file(filename: str) -> (dict, dict, set):
-    '''
-    Input
-        str
-            Filename
-    Output
-        dict
-            {subdomain: (code, {IPs})}
-        set
-            NXDOMAIN with CNAME
-        set
-            SERVFAIL/REFUSED subdomains
-    '''
-    with open(filename) as file:
-        return(load(file.read().split("\n")))

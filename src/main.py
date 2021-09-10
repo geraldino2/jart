@@ -1,5 +1,20 @@
 #!/usr/bin/python
 
+banner = """
+    _            _   
+   (_)          | |  
+    _  __ _ _ __| |_ 
+   | |/ _` | '__| __|
+   | | (_| | |  | |_ 
+   | |\\__,_|_|   \\__|
+  _/ |               
+ |__/                
+-------------------------
+Version: beta
+Status: {}
+Author: apolo2
+"""
+
 import subprocess
 import os
 import sys
@@ -27,6 +42,12 @@ from modules.subdomain_takeover import SubdomainTakeover
 def run_command(
         cmd: str
     ) -> (bytes, bytes):
+    """
+    Run a command in the default shell and return stdout, stderr.
+
+    :param cmd: command string
+    :returns: stdout, stderr as bytes
+    """
     cmd = [arg for arg in cmd.split(" ") if arg != ""]
     process = subprocess.Popen(
                     cmd,
@@ -75,6 +96,7 @@ class Jart:
 
     @property
     def proxies(self):
+        """Return a proxy dictionary from http_proxy, https_proxy."""
         _proxies = {
             "http": self.http_proxy,
             "https": self.https_proxy
@@ -83,6 +105,7 @@ class Jart:
 
     @property
     def trusted_resolver_list(self):
+        """Read self.trusted_resolvers and returns a list of lines."""
         with open(self.trusted_resolvers, "r") as trusted_resolvers_file:
             return(trusted_resolvers_file.read().split("\n")[:-1])
 
@@ -91,6 +114,13 @@ class Jart:
             self,
             record: str
         ) -> int:
+        """
+        Using the current DB, return the first dns_id that is equal to 
+        the record.
+
+        :param record: a specific DNS record value to be searched for
+        :returns: dns_records.dns_id if the conditions are met
+        """
         self.db_cursor.execute(
                             "SELECT dns_id FROM dns_records WHERE record=%s",
                             (record,)
@@ -98,7 +128,7 @@ class Jart:
         result = self.db_cursor.fetchall()
         if(len(result) > 0):
             return(int(result[0][0]))
-        return(-1)
+        return(None)
 
     def add_service(
             self,
@@ -108,9 +138,20 @@ class Jart:
             state: str,
             service: str,
             fingerprint: str
-        ) -> int:
-        if(dns_id == -1):
-            return(-1)
+        ) -> None:
+        """
+        In the current DB, insert a new row into services.
+
+        :param dns_id: db.services.dns_id
+        :param port: db.services.port
+        :param transport_protocol: db.services.transport_protocol
+        :param state: db.services.state
+        :param service: db.services.service
+        :param fingerprint: db.services.fingerprint
+        :returns: integer indicating if it was added as a valid record
+        """
+        if(dns_id == None):
+            return(None)
         if(fingerprint == ""):
             fingerprint = "NULL"
         else:
@@ -122,18 +163,24 @@ class Jart:
                             AS transport_protocol, {fingerprint} AS fingerprint
                             WHERE NOT EXISTS ( SELECT 1 FROM services WHERE
                             dns_id = {dns_id} AND port = {port} ) LIMIT 1""")
-        return(0)
+        return
 
     def add_vulnerability(
             self,
             hostname: str,
             vuln: str
         ) -> None:
+        """
+        In the current DB, insert a new row into vulnerabilities.
+
+        :param hostname: db.subdomains.hostname
+        :param vuln: db.vulnerabilities.vulnerability
+        """
         self.db_cursor.execute("""INSERT INTO vulnerabilities(subdomain_id,
                             vulnerability) VALUES ((SELECT subdomain_id FROM
                             subdomains WHERE hostname=%s),%s)""",
                             (hostname, vuln))
-        return(None)
+        return
 
     def probe_http(
             self,
@@ -146,6 +193,20 @@ class Jart:
             max_http_retries: int,
             proxies: dict
         ) -> tuple:
+        """
+        Perform a HTTP request to a socket.
+
+        :param hostname: db.subdomains.hostname
+        :param port: TCP port
+        :param subdomain_id: db.subdomains.subdomain_id
+        :param http_req_timeout: timeout to perform a request
+        :param http_rcv_timeout: timeout to download the content
+        :param max_http_size: max size to be downloaded
+        :param max_http_retries: max retries to perform a request
+        :param proxies: dictionary containing proxies
+        :returns: db.directories.(subdomain_id, port, tls, status_code,
+                  size, source, headers) as tuple
+        """
         response = http_requests.probe(
                         hostname,
                         port,
@@ -156,7 +217,7 @@ class Jart:
                         max_http_retries,
                         proxies
                     )
-        if(response[0] != -1):
+        if(response[0] != None):
             return(
                 subdomain_id,
                 port,
@@ -168,7 +229,8 @@ class Jart:
             )
         return((,))
 
-    def initialize_database(self)
+    def initialize_database(self) -> None:
+        """Establish a DB connection and create structures."""
         self.db = db_conn.DB_Connection(
                             self.db_host,
                             self.user,
@@ -184,14 +246,12 @@ class Jart:
         self.db_cursor.execute("SET character_set_connection=utf8mb4")
         self.db.commit()
 
-        print("#create tables")
         with open("{}/modules/database/create-tables.sql".format(\
                 self.root_path)) as queries_file:
             create_table_queries = queries_file.read().split("---")
         for sql_query in create_table_queries:
             self.db_cursor.execute(sql_query)
 
-        print("#table targets")
         targets = {self.domain}
         with open("targets", "w") as targets_file:
             for target in targets:
@@ -202,28 +262,40 @@ class Jart:
                                     SELECT 1 FROM targets WHERE hostname=%s 
                                     LIMIT 1)""", (target, target))
         self.db.commit()
+        return
 
-    def subfinder(self):
+    def subfinder(self) -> None:
+        """Run projectdiscovery/subfinder."""
         run_command(f"""subfinder -d {self.domain} -all -o subfinder-out
                         -rL {self.resolvers} -timeout 90""")
+        return
 
-    def amass(self):
+    def amass(self) -> None:
+        """Run OWASP/Amass."""
         run_command(f"""amass enum -active -rf {self.resolvers} -d 
                         {self.domain} -o amass-out -passive -nf 
                         subfinder-out""")
+        return
 
-    def validate_base_subdomains(self):
+    def validate_base_subdomains(self) -> None:
+        """Run blechschmidt/massdns against possible subdomains."""
         run_command(f"""massdns -r {self.resolvers} -w massdns-resolve-out -o
                         Srmldni amass-out -s 20000 --root""")
+        return
 
     def brute_subdomains(self):
+        """
+        Generate a list of subdomains using self.brute_wordlist,
+        run blechschmidt/massdns against it. Run infosec-au/altdns and
+        blechschmidt/massdns against valid subdomains.
+        """
         with open("tobrute", "w") as brute_file:
             for parameter in open(self.brute_wordlist,"r"):
                 _ = brute_file.write("{}.{}\n".format(
                                                 parameter.replace("\n", ""),
                                                 domain))
 
-        _ = run_command(f"""massdns -r {self.resolvers} -w massdns-brute-out 
+        run_command(f"""massdns -r {self.resolvers} -w massdns-brute-out 
                             -o Srmldni tobrute -s 20000 --root""")
 
         with open("massdns-resolve-out", "r") as resolve_out,\
@@ -237,14 +309,16 @@ class Jart:
                 nxdomain_join.write("\n".join(nxdomain))
                 errors_join.write("\n".join(errors))
 
-        _ = run_command(f"""altdns -i t-subdomains -o altdns-out -w
+        run_command(f"""altdns -i t-subdomains -o altdns-out -w
                             {self.alt_wordlist}""")
-
-        print("#massdns - brute alt")
-        _ = run_command(f"""massdns -r {self.resolvers} -w massdns-alt-out -o
+        run_command(f"""massdns -r {self.resolvers} -w massdns-alt-out -o
                             Srmldni altdns-out -s 200000 --root""")
 
-    def consolidate_subdomains(self):
+    def consolidate_subdomains(self) -> None:
+        """
+        Perform DNS queries to categorize a subdomain. Join subdomains 
+        and its info into files/dictionaries.
+        """
         with open("massdns-alt-out", "r") as alt_out,\
             open("subdomains", "w") as valid_join,\
             open("nxdomains", "w") as nxdomain_join,\
@@ -257,7 +331,7 @@ class Jart:
                 valid = set()
                 nxdomain = set()
                 error = set()
-                for line in temp_subdomains.revalidad().split("\n"):
+                for line in temp_subdomains.read().split("\n"):
                     valid.add(line)
                 for line in temp_nxdomains.read().split("\n"):
                     nxdomain.add(line)
@@ -277,7 +351,7 @@ class Jart:
                     if(domain not in valid):
                         errors_join.write(domain + "\n")
 
-        _ = run_command(f"""massdns -r {self.trusted_resolvers} -w 
+        run_command(f"""massdns -r {self.trusted_resolvers} -w 
                             massdns-ns-out -t NS -o Srmldni errors -s 20000
                             --root""")
 
@@ -296,7 +370,7 @@ class Jart:
             massdns_ns = massdns.load(ns_lines)
             ns_valid = massdns_ns[0]
             ns_records = massdns_ns
-            errors = dict()
+            self.errors = dict()
             for subdomain in list(ns_records[0].keys()):
                 if(subdomain not in subdomains_lines):
                     resolver = random.choice(self.trusted_resolver_list)
@@ -321,8 +395,13 @@ class Jart:
                                                         code,
                                                         ns_valid[subdomain][1]
                                                      )
+    return
 
-    def consolidate_dns(self):
+    def consolidate_dns(self) -> None:
+        """
+        Add DNS information into the DB. Perform different types of 
+        queries, treat it and add their data into the DB.
+        """
         for classification in [self.valid, self.nx, self.errors]:
             for key in classification.keys():
                 db_cursor.execute("""INSERT INTO subdomains(hostname) VALUES 
@@ -382,7 +461,14 @@ class Jart:
                                             (dns_id, ip))
         self.db.commit()
 
-        def dns_parsed_query(hostname,query_question) -> list:
+        def dns_parsed_query(hostname: str, query_question: int) -> list:
+            """
+            Perform a DNS query and return its parsed answer.
+
+            :param hostname: hostname to be questioned
+            :param query_question: DNS question
+            :returns: hostname, DNS question, DNS answer, DNS SOA, rcode
+            """
             rlist = [] 
             question_str = rdatatype.to_text(query_question)
             resolver = random.choice(self.trusted_resolver_list)
@@ -426,9 +512,16 @@ class Jart:
         self.db_cursor.execute(select_query)
         records = []
 
-        def append_dns_record(hostname, query_questions) -> None:
+        def append_dns_record(hostname: str, query_questions: list) -> None:
+            """
+            For each question, add its answer into a list of records.
+
+            :param hostname: hostname to be questioned
+            :param query_questions: list of DNS question types
+            """
             for question in query_questions:
                 records.append(dns_parsed_query(hostname, question))
+            return
 
         with concurrent.futures.ThreadPoolExecutor(
                                     max_workers=self.max_dns_query_threads
@@ -485,8 +578,13 @@ class Jart:
                                                 email_address=%s )""",
                                                 (email, email))
         self.db.commit()
+        return
 
-    def service_scan(self):
+    def service_scan(self) -> None:
+        """
+        Use robertdavidgraham/masscan and nmap to detect services; add
+        them to the DB.
+        """
         with open("{}/modules/database/select-hostname_ipv4.sql".format(\
                 self.root_path)) as queries_file:
             hostname_ipv4_queries = queries_file.read().split("---")
@@ -553,8 +651,10 @@ class Jart:
                             ""
                         )
         self.db.commit()
+    return
 
-    def fuzz_webservers(self):
+    def fuzz_webservers(self) -> None:
+        """Use self.probe_http and get webpages; add them to the DB."""
         self.db_cursor.execute("""SELECT sbd.hostname,svc.port,
                                 dnl.subdomain_id FROM subdomains AS sbd INNER 
                                 JOIN dns_link AS dnl ON sbd.subdomain_id=
@@ -651,7 +751,7 @@ class Jart:
                                                         self.max_http_retries,
                                                         self.proxies
                                                     )
-                    if(req == -1):
+                    if(req == None):
                         continue
                     self.db_cursor.execute("""INSERT INTO source_codes(
                                             source_code) SELECT * FROM (SELECT
@@ -707,8 +807,13 @@ class Jart:
                                                         port, 
                                                         path
                                                     ))
+        return
 
-    def nuclei(self):
+    def nuclei(self) -> None:
+        """
+        Run projectdiscovery/nuclei; filter detected vulns and add them 
+        to the DB.
+        """
         run_command(f"""nuclei -l urls -t {self.nuclei_templates} -o 
                         nuclei-output -json -nc -vv -r {self.resolvers} 
                         -env-vars -rl {self.max_http_rps} -bs 
@@ -745,8 +850,13 @@ class Jart:
                                         severity
                                     ))
         self.db.commit()
+        return
 
-    def filter_emails(self):
+    def filter_emails(self) -> None:
+        """
+        Use regular expressions to filter emails from database data and
+        add them to the database.
+        """
         self.db_cursor.execute("SELECT source_code FROM source_codes")
         emails = set()
         for source_code in self.db_cursor.fetchall():
@@ -764,8 +874,13 @@ class Jart:
             self.db_cursor.execute("""INSERT INTO emails(email_address) VALUES
                                     (%s)""", (email,))
         self.db.commit()
+        return
 
-    def check_subdomain_takeover(self):
+    def check_subdomain_takeover(self) -> None:
+        """
+        Use SubdomainTakeover class to check possible subdomain 
+        takeovers; if any subdomain is vulnerable, add it to the DB.
+        """
         services_takeover = SubdomainTakeover(
                                 random.choice(self.resolver_list), 
                                 self.valid
@@ -814,8 +929,13 @@ class Jart:
                                             f"""[SUBDOMAIN TAKEOVER] NX NS 
                                             {result}"""))
         self.db.commit()
+        return
 
-    def fuzz_directories(self):
+    def fuzz_directories(self) -> None:
+        """
+        Use self.dir_wordlist_path and getallurls to create a list of
+        possible directories. Use epi052/feroxbuster to fuzz those dirs.
+        """
         if(self.dir_target_wordlists):
             p1 = subprocess.Popen(["cat", "targets"],stdout=subprocess.PIPE)
             p2 = subprocess.Popen(["getallurls", "-subs", "-o", "waybackurls"],
@@ -856,9 +976,12 @@ class Jart:
                                 bufsize=1, universal_newlines=True) as p2:
             for line in p2.stdout:
                 if(line != "\n"):
-                    print(line[:-1])
+                    #print(line[:-1])
+                    pass
+        return
 
-    def screenshot(self):
+    def screenshot(self) -> None:
+        """Take a screenshot of every source_code and add to the DB."""
         hti = Html2Image(
             custom_flags = [
                 "--virtual-time-budget=10000",
@@ -882,8 +1005,10 @@ class Jart:
                                     ("{}/screenshots/{}.png".format(
                                     self.root_path, sc_id), result[1]))
         self.db.commit()
+        return
 
-    def remove(self):
+    def remove(self) -> None:
+        """Remove some used files."""
         to_remove = [
             "altdns-out",
             "alt-errors",
@@ -902,15 +1027,18 @@ class Jart:
                 os.remove(file)
             except FileNotFoundError:
                 continue
+        return
 
-    def close(self):
+    def close(self) -> None:
+        """Close the DB connection."""
         self.db_cursor.close()
         self.db.close()
+        return
 
 
 if __name__ == "__main__":
     os.system("cls||clear")
-    print("banner")
+    print(banner)
     if(os.geteuid() != 0):
         print("nmap/masscan requires sudo.")
         sys.exit(1)

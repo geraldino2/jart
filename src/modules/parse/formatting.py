@@ -1,13 +1,14 @@
 import re
 
-def set_to_str(input: set):
-	parsed = ""
-	for item in input:
-		parsed += f"{item} "
-	return(parsed[:-1])
 
-def is_ipv4(address: str):
-	return(re.match("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", address))
+def is_ipv4(
+		address: str
+	) -> bool:
+	"""Returns a boolean indicating if the given address is in IPv4 format."""
+	return(re.match("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$", address))
 
-def normalize_whitespaces(text:str):
+def normalize_whitespaces(
+		text: str
+	): -> str:
+	"""Returns the given string, without duplicated whitespaces."""
 	return(" ".join(text.split()))

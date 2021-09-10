@@ -6,12 +6,16 @@ def process_query(
         host: str,
         question: int,
         retries: int = 3
-    ) -> (int, str):
-    '''
-    Output
-        status
-        ANSWER
-    '''
+    ) -> (int, str, str):
+    """
+    Perform a DNS request.
+
+    :param resolver: DNS resolver to be used
+    :param host: hostname to be questioned
+    :param question: DNS question type
+    :param retries: max number of retries
+    :returns: DNS rcode, answer, SOA
+    """
     ADDITIONAL_RDCLASS = 65535
     request = message.make_query(name.from_text(host), question)
     request.flags |= flags.AD

@@ -20,13 +20,26 @@ def probe(
         retries: int = 3,
         proxies: dict = {}
     ) -> (int, str, dict, bool):
+    """
+    Try to successfully perform a HTTP request and receive an answer.
+
+    :param hostname: hostname to be requested
+    :param port: TCP port
+    :param path: path of the URL
+    :param req_timeout: timeout to perform a request
+    :param rcv_timeout: timeout to download the content
+    :param max_size: max size to be downloaded
+    :param retries: max number of retries to perform a request
+    :param proxies: dictionary containing proxies
+    :returns: HTTP status code, source code, headers, protocol, as tuple
+    """
     http_response = https_response = (-1, "", "", False)
     protocol_link = {"http": http_response, "https": https_response}
 
     for protocol in protocol_link.keys():
         req, response = request(f"{protocol}://{hostname}:{port}{path}",
                                 proxies = proxies)
-        if(req == -1):
+        if(req == None):
             continue
         protocol_link[protocol] = (
                                     req.status_code, 
@@ -48,6 +61,17 @@ def request(
         retries: int = 3,
         proxies: dict = dict()
     ) -> tuple:
+    """
+    Try to successfully perform a HTTP request and receive an answer.
+
+    :param url: URL to be requested
+    :param req_timeout: timeout to perform a request
+    :param rcv_timeout: timeout to download the content
+    :param max_size: max size to be downloaded
+    :param retries: max number of retries to perform a request
+    :param proxies: dictionary containing proxies
+    :returns: HTTP status code, source code, headers, protocol, as tuple
+    """
     for _ in range(retries):
         try:
             req = requests.get(
@@ -73,4 +97,4 @@ def request(
                 break
         response = response.decode("utf-8")
         return(req, response)
-    return(-1, -1)
+    return(None, None)
